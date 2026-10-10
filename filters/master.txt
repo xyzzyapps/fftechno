@@ -1,1 +1,0 @@
-[0]loudnorm=I=-13.0:TP=-1.0:LRA=11:measured_I=-16.92:measured_TP=-1.00:measured_LRA=2.10:measured_thresh=-26.94:offset=-0.25:linear=true:print_format=summary,alimiter=limit=0.88:level=disabled,equalizer=f=9000:t=h:w=0.7:g=1.5,aresample=48000:out_sample_fmt=s16:dither_method=triangular_hp,aformat=sample_fmts=s16:channel_layouts=stereo[out]

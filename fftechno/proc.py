@@ -1,0 +1,27 @@
+"""Process helpers: run commands with consistent, quiet ffmpeg defaults."""
+
+from __future__ import annotations
+
+import subprocess
+from pathlib import Path
+from typing import Sequence
+
+
+def run(cmd: Sequence[object], *, log: Path | None = None, check: bool = True) -> int:
+    """Run *cmd*. Redirect stderr to *log* (or suppress it); raise on failure."""
+    args = [str(a) for a in cmd]
+    if log is not None:
+        log.parent.mkdir(parents=True, exist_ok=True)
+        with open(log, "wb") as fh:
+            code = subprocess.run(args, stdout=subprocess.DEVNULL, stderr=fh).returncode
+    else:
+        code = subprocess.run(args, stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL).returncode
+    if check and code != 0:
+        raise SystemExit(f"command failed ({code}): {' '.join(args)}")
+    return code
+
+
+def ffmpeg(args: Sequence[object], *, log: Path | None = None) -> int:
+    """Run ffmpeg with quiet defaults (``-v error``) and optional stderr log."""
+    return run(["ffmpeg", "-hide_banner", "-nostdin", "-v", "error", *args], log=log)

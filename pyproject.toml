@@ -1,0 +1,14 @@
+[project]
+name = "fftechno"
+version = "1.0.0"
+description = "Hardgroove techno track (ffmpeg synthesis) + ASCII VapourSynth video."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+fftechno = "fftechno.cli:main"
+
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"

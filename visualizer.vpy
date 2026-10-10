@@ -1,29 +1,27 @@
-"""visualizer.vpy - VapourSynth + GLSL (vs-placebo) visualizer for output/techno.wav.
+"""visualizer.vpy - VapourSynth + GLSL (vs-placebo) ASCII visualizer.
 
-Aesthetic: black-and-white. Images from the `ascii/` folder are converted to
-ASCII art (a self-contained numpy bitmap font, no external deps), looped at
-random one every 2 bars, and a Berlin-techno overlay (hypnotic rings, audio
-spokes, grid, scanlines, kick glitch, grain) is drawn over them in monochrome by
-a GPU GLSL shader.
+Black-and-white visual: every image in ``ascii/`` is converted to ASCII art with
+a self-contained numpy bitmap font (no external assets), played once through a
+shuffled playlist so each image is used at least ``REUSE`` times, and a
+Berlin-techno overlay (hypnotic rings, audio spokes, grid, scanlines, kick
+glitch, grain) is drawn over it in monochrome by a GPU GLSL shader.
 
 Pipeline
 --------
-1. At load: decode each needed image with ffmpeg -> 120x72 gray grid -> ASCII
-   bitmap -> cached uint8 frame. Random image per 2-bar block (deterministic RNG).
+1. Decode each image with ffmpeg -> 80x45 gray grid -> ASCII bitmap (cached).
 2. Per frame: write the ASCII frame into the luma plane and the audio data strip
-   (64 bands + bass + kick + energy) into rows 0-3 of a YUV444P16 clip.
-3. core.placebo.Shader runs a GLSL shader that reads the ASCII (HOOKED_tex), the
-   strip (audio reactivity) and `frame` (time) and draws the B/W overlay.
+   (64 bands + bass + kick + energy) into the top rows of a YUV444P16 clip.
+3. ``core.placebo.Shader`` reads the ASCII (``HOOKED_tex``), the strip (audio
+   reactivity) and ``frame`` (time) and draws the B/W overlay.
 4. Convert to YUV420P8 for y4m piping.
 
-Run:  .venv\\Scripts\\vspipe.exe -c y4m visualizer.vpy - | ffmpeg -f yuv4mpegpipe -i - ...
-Info: .venv\\Scripts\\vspipe.exe -i visualizer.vpy -
+Run:  .venv\\\\Scripts\\\\vspipe.exe -c y4m visualizer.vpy - | ffmpeg -f yuv4mpegpipe -i - ...
+Info: .venv\\\\Scripts\\\\vspipe.exe -i visualizer.vpy -
 """
 
 import ctypes
 import glob
 import math
-import os
 import subprocess
 import wave
 
@@ -39,10 +37,9 @@ AUDIO_PATH = "output/techno.wav"
 IMG_DIR = "ascii"
 W, H, FPS = 1920, 1080, 30
 NBARS = 64
-BAR = 60.0 / 140.0 * 4.0            # 1.7142857 s
 CELL = 24                           # strip pixels per value
 STRIP_ROWS = 4
-IMG_PERIOD = 60.0 / 140.0           # seconds per ascii image (one per beat = rapid)
+IMG_PERIOD = 60.0 / 140.0           # fallback image period if there are no images
 
 GRID_W, GRID_H = 80, 45             # ascii cells
 CELL_W, CELL_H = W // GRID_W, H // GRID_H
@@ -218,7 +215,6 @@ def analyse(path):
 
 A = analyse(AUDIO_PATH)
 NF = A["n_frames"]
-TOTAL_BARS = int(math.ceil(A["duration"] / BAR))
 
 # ---------------------------------------------------------------------------
 # ASCII frames: one random image per beat (rapid), rendered on demand + cached

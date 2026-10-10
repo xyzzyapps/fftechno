@@ -351,3 +351,28 @@ the synths are near-single-voice. Closing those fully needs a real synth engine
   audio is re-encoded from the clean master at olume=1.5 + limiter=limit=0.80
   (headroom for AAC overshoot) with the video stream copied. Result ~ -9.8 LUFS.
   This post-step does not re-render the video.
+
+---
+
+## 19. Tooling: pure Python (no shell scripts)
+
+The build is driven by the `fftechno` Python package (standard library only);
+ffmpeg still performs all synthesis from the graphs in `filters/`.
+
+`
+python -m fftechno audio     # vox + IR + stems -> mix -> master
+python -m fftechno video     # vspipe | ffmpeg -> MP4 (+720p)
+python -m fftechno all       # audio then video
+python -m fftechno boost 2.0 # re-level finished MP4s (video copied)
+`
+
+Modules: `config` (paths/timing/stem lists/loudness), `proc` (subprocess),
+`audio` (IR, stems, mix, 2-pass loudnorm master), `vox` (espeak-ng),
+`video` (render/mux, preview, re-level), `cli`.
+
+Changes vs the previous PowerShell build:
+- `build.ps1` / `build_video.ps1` / `make_vox.ps1` removed.
+- `filters/master.txt` removed: the master graph is generated in
+  `fftechno/audio.py` from the loudnorm measurements (no stale values).
+- `visualizer.vpy` de-cluttered (unused import, unused constant, updated docs).
+- `pyproject.toml` added (metadata + `fftechno` console script).
