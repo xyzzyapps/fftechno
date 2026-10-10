@@ -1,12 +1,9 @@
 """Arrangement: parse ``song.md`` and build the mix filter graph.
 
-Nothing is hard-coded: the arranged stems (Sections columns), drum patterns
-(Patterns rows), fixed levels (Levels rows), panning (Pan rows) and global effects
-(Effects rows) all come from ``song.md``. Missing entries raise a clear error.
-
-Only the mix *topology* lives here: the kick side-chains a low bus, everything is
-summed, a high-passed send runs through the convolution reverb, then the bus
-compressor and stereo widener.
+Nothing is hard-coded: the stem list and input order (Stems table), the side-chain
+key and low bus (scalars), the arranged stems (Sections columns), drum patterns
+(Patterns rows), pitches (in sounds.md), panning (Pan rows), fixed levels (Levels)
+and global effects (Effects rows) all come from markdown. Missing entries raise.
 """
 
 from __future__ import annotations
@@ -15,20 +12,29 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import config as C
-
 STEPS_PER_BAR = 16
-LOW_BUS = ("bass", "growl")      # stems ducked under the kick
-KEY_STEM = "kick"                # stem that drives the side-chain
+
+
+def _cells(line: str) -> list[str]:
+    """Split a markdown table row on unescaped '|' (``\\|`` is a literal pipe)."""
+    inner = line.strip()
+    if inner.startswith("|"):
+        inner = inner[1:]
+    if inner.endswith("|") and not inner.endswith("\\|"):
+        inner = inner[:-1]
+    return [c.replace("\\|", "|").strip() for c in re.split(r"(?<!\\)\|", inner)]
 
 
 @dataclass
 class Song:
-    """A parsed arrangement (every value originates in song.md)."""
+    """A parsed arrangement (every value originates in markdown)."""
 
     bpm: float
     bars: int
     fade_bars: float
+    stems_order: list[str] = field(default_factory=list)
+    sidechain_key: str = ""
+    low_bus: list[str] = field(default_factory=list)
     arranged: list[str] = field(default_factory=list)
     boosts: dict[str, float] = field(default_factory=dict)
     sections: list[tuple[int, int, dict[str, float]]] = field(default_factory=list)
@@ -43,7 +49,7 @@ class Song:
 
     @property
     def stems(self) -> set[str]:
-        return set(self.arranged) | set(self.levels)
+        return set(self.stems_order)
 
 
 def _need(mapping: dict, key, where: str):
@@ -60,11 +66,11 @@ def _tables(text: str) -> list[tuple[list[str], list[list[str]]]]:
     while i < len(lines):
         sep = re.match(r"^\s*\|[\s:|.-]+\|\s*$", lines[i + 1]) if i + 1 < len(lines) else None
         if lines[i].lstrip().startswith("|") and sep:
-            header = [c.strip() for c in lines[i].strip().strip("|").split("|")]
+            header = _cells(lines[i])
             rows: list[list[str]] = []
             j = i + 2
             while j < len(lines) and lines[j].lstrip().startswith("|"):
-                rows.append([c.strip() for c in lines[j].strip().strip("|").split("|")])
+                rows.append(_cells(lines[j]))
                 j += 1
             tables.append((header, rows))
             i = j
@@ -89,15 +95,18 @@ def _decode(pattern: str) -> list[float]:
 def parse(path: Path) -> Song:
     """Parse the ``song.md`` control surface (all values required)."""
     text = path.read_text(encoding="utf-8")
-    scalars = dict(re.findall(r"^\s*([a-z_]+)\s*:\s*([0-9.]+)\s*$", text, re.M))
-    for key in ("bpm", "bars", "fade_bars"):
+    scalars = dict(re.findall(r"^\s*([a-z_]+)\s*:\s*(\S+)\s*$", text, re.M))
+    for key in ("bpm", "bars", "fade_bars", "sidechain_key", "low_bus"):
         if key not in scalars:
             raise SystemExit(f"song.md: missing scalar '{key}'")
-    song = Song(float(scalars["bpm"]), int(float(scalars["bars"])), float(scalars["fade_bars"]))
+    song = Song(float(scalars["bpm"]), int(float(scalars["bars"])), float(scalars["fade_bars"]),
+                sidechain_key=scalars["sidechain_key"], low_bus=scalars["low_bus"].split("|"))
 
     for header, rows in _tables(text):
         head = [h.lower() for h in header]
-        if head[:2] == ["stem", "boost"]:
+        if head == ["stem"]:
+            song.stems_order = [r[0] for r in rows]
+        elif head[:2] == ["stem", "boost"]:
             song.boosts = {r[0]: float(r[1]) for r in rows}
         elif head[0] == "bars":
             cols = header[1:]
@@ -117,10 +126,16 @@ def parse(path: Path) -> Song:
         elif head[:2] == ["stem", "level"]:
             song.levels = {r[0]: float(r[1]) for r in rows}
 
+    if not song.stems_order:
+        raise SystemExit("song.md: missing Stems table")
     if not song.sections:
         raise SystemExit("song.md: missing Sections table")
     for stem in song.stems:
         _need(song.pan, stem, "Pan")
+    _need(song.pan, song.sidechain_key, "Pan")
+    for stem in song.low_bus:
+        if stem not in song.stems:
+            raise SystemExit(f"song.md: low_bus stem '{stem}' is not in the Stems table")
     return song
 
 
@@ -152,8 +167,8 @@ def build_graph(song: Song) -> str:
     """Assemble the full mix filtergraph (a ``-filter_complex_script`` body)."""
     bar = song.bar_seconds
     step = bar / STEPS_PER_BAR
-    index = {name: i for i, name in enumerate(C.MIX_INPUTS)}
-    ir_index = len(C.MIX_INPUTS)
+    index = {name: i for i, name in enumerate(song.stems_order)}
+    ir_index = len(song.stems_order)
     fx = song.effects
     for key in ("reverb_send", "reverb_hpf", "reverb_wet", "sidechain_threshold",
                 "sidechain_ratio", "sidechain_attack", "sidechain_release",
@@ -177,17 +192,16 @@ def build_graph(song: Song) -> str:
     for stem, level in song.levels.items():
         lines.append(f"[{index[stem]}]volume={level:g},pan=stereo|c0=0.5*c0|c1=0.5*c0[{stem}]")
 
-    low = "".join(f"[{s}]" for s in LOW_BUS)
-    others = "".join(f"[{('kickm' if s == KEY_STEM else s)}]"
-                     for s in C.MIX_INPUTS if s in song.stems and s not in LOW_BUS)
-    count = 1 + len([s for s in C.MIX_INPUTS if s in song.stems and s not in LOW_BUS])
+    low = "".join(f"[{s}]" for s in song.low_bus)
+    others = [s for s in song.stems_order if s not in song.low_bus]
+    mixes = "".join(f"[{'keym' if s == song.sidechain_key else s}]" for s in others)
     lines += [
-        f"[{KEY_STEM}]asplit=2[kickm][key]",
-        f"{low}amix=inputs={len(LOW_BUS)}:normalize=0[low]",
-        f"[low][key]sidechaincompress=threshold={fx['sidechain_threshold']:g}"
+        f"[{song.sidechain_key}]asplit=2[keym][sckey]",
+        f"{low}amix=inputs={len(song.low_bus)}:normalize=0[low]",
+        f"[low][sckey]sidechaincompress=threshold={fx['sidechain_threshold']:g}"
         f":ratio={fx['sidechain_ratio']:g}:attack={fx['sidechain_attack']:g}"
         f":release={fx['sidechain_release']:g}:makeup=1[lowd]",
-        f"[lowd]{others}amix=inputs={count}:normalize=0[sum]",
+        f"[lowd]{mixes}amix=inputs={1 + len(others)}:normalize=0[sum]",
         "[sum]asplit=2[sm][sr]",
         f"[sr]highpass=f={fx['reverb_hpf']:g},volume={fx['reverb_send']:g}[srh]",
         f"[srh][{ir_index}]afir=dry=0:wet={fx['reverb_wet']:g}:gtype=peak[rvb]",

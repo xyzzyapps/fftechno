@@ -43,18 +43,6 @@ LOUDNESS_LRA = 11.0
 LIMITER_CEILING = 0.88      # linear amplitude (~ -1.1 dBFS)
 
 # --- assets ----------------------------------------------------------------
-# Oscillator stems, each rendered from filters/<name>.txt (ends in [out]).
-OSC_STEMS = (
-    "kick", "clap", "hat", "ohat", "perc", "shaker",
-    "bongo", "rim", "bass", "growl", "acid", "beeps",
-)
-
-# Input order for filters/mix.txt ([0]..[n]); the reverb IR is appended last.
-MIX_INPUTS = (
-    "kick", "clap", "hat", "ohat", "perc", "bass", "growl",
-    "acid", "shaker", "vox", "bongo", "rim", "beeps",
-)
-
 # Female espeak-ng phrases (order must match filters/vox.txt placement graph).
 VOX_PHRASES = (
     "speak to me", "come on", "feel it", "hard groove", "let go",

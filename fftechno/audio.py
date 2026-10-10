@@ -24,34 +24,31 @@ def make_ir() -> None:
             "-c:a", "pcm_f32le", C.IR])
 
 
-def render_osc_stems() -> None:
-    """Render every oscillator stem from its filter graph."""
+def render_stems(names) -> None:
+    """Render each synth (its ``filters/<name>.txt``) to ``output/stems/<name>.wav``."""
     C.STEMS.mkdir(parents=True, exist_ok=True)
-    for name in C.OSC_STEMS:
+    for name in names:
         ffmpeg(["-y", "-filter_complex_script", C.FILTERS / f"{name}.txt",
                 "-map", "[out]", "-c:a", "pcm_f32le", C.STEMS / f"{name}.wav"])
-
-
-def _mix_inputs() -> list[str]:
-    """-i arguments for the mix, in the order filters/mix.txt expects."""
-    files = [C.STEMS / f"{name}.wav" for name in C.MIX_INPUTS] + [C.IR]
-    args: list[str] = []
-    for path in files:
-        args += ["-i", str(path)]
-    return args
 
 
 def mix() -> None:
     """Mix the stems using the arrangement parsed from ``song.md``.
 
-    The per-stem section automation (plus panning, kick side-chain and reverb
-    bus) is generated into ``output/logs/mix.txt`` and applied as a filtergraph.
+    The per-stem section automation (plus panning, side-chain and reverb bus) is
+    generated into ``output/logs/mix.txt`` and applied as a filtergraph.
     """
-    graph = arrangement.build_graph(arrangement.parse(C.SONG))
+    song = arrangement.parse(C.SONG)
+    graph = arrangement.build_graph(song)
     C.LOGS.mkdir(parents=True, exist_ok=True)
     script = C.LOGS / "mix.txt"
     script.write_text(graph, encoding="utf-8")
-    ffmpeg(["-y", *_mix_inputs(), "-filter_complex_script", script,
+
+    inputs: list[str] = []
+    for name in song.stems_order:
+        inputs += ["-i", str(C.STEMS / f"{name}.wav")]
+    inputs += ["-i", str(C.IR)]
+    ffmpeg(["-y", *inputs, "-filter_complex_script", script,
             "-map", "[out]", "-c:a", "pcm_f32le", C.MIX_PRE])
 
 
@@ -88,9 +85,9 @@ def build() -> None:
     """Full audio pipeline: synth defs + IR + vocals + stems -> mix -> master."""
     from . import synth, vox  # imported here so audio-only paths stay light
 
-    synth.generate()        # sounds.md -> filters/<name>.txt
+    names = synth.generate()        # sounds.md + templates -> filters/<name>.txt
     make_ir()
     vox.render()
-    render_osc_stems()
+    render_stems(names)
     mix()
     master()

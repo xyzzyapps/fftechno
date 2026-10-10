@@ -172,9 +172,23 @@ Repeat until it sounds right. When happy, render the video with
 **1. Header scalars**
 
 ```markdown
-bpm: 140        # tempo; one bar = 4 beats = 4 * 60/bpm seconds
-bars: 140       # total length (4:00 at 140 BPM)
-fade_bars: 7    # the final section fades to silence over this many bars
+bpm: 140          # tempo; one bar = 4 beats = 4 * 60/bpm seconds
+bars: 140         # total length (4:00 at 140 BPM)
+fade_bars: 7      # the final section fades to silence over this many bars
+sidechain_key: kick    # which stem drives the ducking
+low_bus: bass|growl    # stems grouped and ducked under the key
+```
+
+**Stems** - the mix input order (one `-i` per row). This is the full list of stems;
+every stem needs a `Pan` row and either a `Sections` column, a `Levels` row, or both.
+
+```markdown
+| stem   |
+|--------|
+| kick   |
+| clap   |
+| ...    |
+| beeps  |
 ```
 
 **2. Boosts** - a fixed gain per stem, multiplied on top of the section gains.
@@ -321,7 +335,9 @@ There are no built-in defaults: every value comes from `sounds.md`.
 - `python -m fftechno synth` substitutes the values and writes `filters/<name>.txt`;
   a missing placeholder fails loudly.
 
-Templates: `kick`, `clap`, `noise` (hat/ohat/shaker), `tom` (perc/bongo), `rim`.
+Templates: `kick`, `clap`, `noise` (hat/ohat/shaker), `tom` (perc/bongo), `rim`,
+`bass`, `acid`, `growl`, `beeps`. Per-step sequences (notes, accents, phrases,
+pitches) are `\|`-separated lists expanded by `{{if_steps(seq; grid; default)}}`.
 
 ```markdown
 step: 0.107143

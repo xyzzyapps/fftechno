@@ -1,11 +1,16 @@
 """Markdown-driven synthesis.
 
 ``sounds.md`` defines instruments (``name | template | parameters``) and global
-scalars; ``templates/*.txt`` are ffmpeg filtergraphs with ``{{key}}`` placeholders.
-``python -m fftechno synth`` renders each instrument to ``filters/<name>.txt``.
+scalars; ``templates/*.txt`` are ffmpeg filtergraphs with placeholders, rendered to
+``filters/<name>.txt`` by ``python -m fftechno synth``. There are no defaults -
+every placeholder must be supplied, otherwise generation fails loudly.
 
-There are no defaults: every ``{{key}}`` an instrument uses must be supplied by the
-globals or its own parameters, otherwise generation fails loudly.
+Template language
+-----------------
+``{{ key }}``                    value substitution
+``{{ if_steps(SEQ; GRID; DEF) }}``  expand a comma list into a nested
+                                 ``if(eq(GRID,0),v0, ... ,DEF)`` - used to build
+                                 per-step melodies/patterns from markdown.
 """
 
 from __future__ import annotations
@@ -16,6 +21,7 @@ from pathlib import Path
 from . import config as C
 
 _PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
+_IF_STEPS = re.compile(r"\{\{\s*if_steps\(([^}]*)\)\s*\}\}")
 
 
 def _scalars(text: str) -> dict[str, str]:
@@ -34,6 +40,16 @@ def _params(cell: str) -> dict[str, str]:
     return out
 
 
+def _cells(line: str) -> list[str]:
+    """Split a markdown table row on unescaped '|' (``\\|`` is a literal pipe)."""
+    inner = line.strip()
+    if inner.startswith("|"):
+        inner = inner[1:]
+    if inner.endswith("|") and not inner.endswith("\\|"):
+        inner = inner[:-1]
+    return [c.replace("\\|", "|").strip() for c in re.split(r"(?<!\\)\|", inner)]
+
+
 def _rows(text: str) -> list[list[str]]:
     """Rows of the first ``name | template | parameters`` table."""
     lines = text.splitlines()
@@ -42,25 +58,47 @@ def _rows(text: str) -> list[list[str]]:
             continue
         if not re.match(r"^\s*\|[\s:|.-]+\|\s*$", lines[i + 1]):
             continue
-        header = [c.strip().lower() for c in line.strip().strip("|").split("|")]
+        header = [c.lower() for c in _cells(line)]
         if header[:3] != ["name", "template", "parameters"]:
             continue
         rows = []
         j = i + 2
         while j < len(lines) and lines[j].lstrip().startswith("|"):
-            rows.append([c.strip() for c in lines[j].strip().strip("|").split("|")])
+            rows.append(_cells(lines[j]))
             j += 1
         return rows
     return []
 
 
-def _render(template: str, values: dict[str, str], name: str) -> str:
+def _simple(text: str, values: dict[str, str], name: str) -> str:
     def repl(match: re.Match[str]) -> str:
         key = match.group(1)
         if key not in values:
             raise SystemExit(f"sounds.md: instrument '{name}' needs value '{key}'")
         return values[key]
-    return _PLACEHOLDER.sub(repl, template)
+    return _PLACEHOLDER.sub(repl, text)
+
+
+def _val(values: dict[str, str], key: str, name: str) -> str:
+    if key not in values:
+        raise SystemExit(f"sounds.md: instrument '{name}' needs value '{key}'")
+    return values[key]
+
+
+def _render(template: str, values: dict[str, str], name: str) -> str:
+    def expand(match: re.Match[str]) -> str:
+        keys = [a.strip() for a in match.group(1).split(";")]
+        if len(keys) != 3:
+            raise SystemExit(f"if_steps needs 3 ';'-separated keys in '{name}'")
+        seq = _val(values, keys[0], name)
+        grid = _val(values, keys[1], name)
+        default = _val(values, keys[2], name)
+        items = [v.strip() for v in seq.split("|")]
+        branches = "".join(f"if(eq({grid},{i}),{v}," for i, v in enumerate(items))
+        return branches + default + ")" * len(items)
+
+    template = _IF_STEPS.sub(expand, template)
+    return _simple(template, values, name)
 
 
 def generate(sounds_path: Path | None = None) -> list[str]:

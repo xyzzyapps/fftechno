@@ -444,6 +444,8 @@ Package entry points: `fftechno.cli:main` (console script) and `python -m fftech
 - **Patterns**: `| stem | pattern |` - one bar of 16 steps (`x` hit, `1`-`9`
   velocity, `.` rest), applied as a sample-accurate `aeval` gate on the drum stems;
 - **Levels**: `| stem | level |` - fixed level for non-arranged stems (vox, beeps);
+- **Stems**: `| stem |` - the mix input order (identical to `MIX_INPUTS`);
+- scalars `sidechain_key` and `low_bus` define the ducking topology;
 - **Effects**: `| effect | value |` - global mix parameters (`reverb_*`,
   `sidechain_*`, `stereo_width`, `bus_*`); all are required (no defaults).
 
@@ -512,3 +514,11 @@ values.
 
 Section 21's generator-function description is superseded by this templating
 approach (`fftechno/synth.py` now only renders templates).
+
+The template language also supports `{{if_steps(seq; grid; default)}}` for per-step
+sequences (notes / accents / phrases / pitches), so melodies live in markdown too.
+Every non-vocal stem is templated (kick, clap, hat, ohat, perc, bongo, rim, shaker,
+bass, acid, growl, beeps); `vox` is the espeak placement graph. The stem list
+(Stems table) and the mix topology (`sidechain_key`, `low_bus`) are in song.md, so
+generation is fully data-driven: running `python -m fftechno audio` regenerates
+filters + stems + mix + master from markdown alone (100% reproducible).

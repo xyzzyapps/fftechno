@@ -6,6 +6,28 @@ Edit this file to rearrange the track; `python -m fftechno audio` regenerates
 bpm: 140
 bars: 140
 fade_bars: 7
+sidechain_key: kick
+low_bus: bass|growl
+
+## Stems
+
+The mix input order (one `-i` per row, top to bottom). The first column only.
+
+| stem   |
+|--------|
+| kick   |
+| clap   |
+| hat    |
+| ohat   |
+| perc   |
+| bass   |
+| growl  |
+| acid   |
+| shaker |
+| vox    |
+| bongo  |
+| rim    |
+| beeps  |
 
 ## Boosts
 
