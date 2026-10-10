@@ -1,1 +1,1 @@
-aevalsrc='0.4*(random(0)*2-1)*exp(-15*mod(t+0.214286,0.428571))*if(lt(mod(t+0.214286,0.428571),0.20),1,0)':s=48000:d=13.714286[src];[src]highpass=f=6500[out]
+aevalsrc='0.4*(random(0)*2-1)*exp(-15*mod(t+0.214286,0.428571))*if(lt(mod(t+0.214286,0.428571),0.20),1,0)':s=48000:d=120[src];[src]highpass=f=6500[out]

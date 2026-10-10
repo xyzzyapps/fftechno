@@ -2,4 +2,6 @@
 output/mix_pre.wav
 output/logs/
 output/*.y4m
-output/techno_visualizer.mp4
+output/stems/
+output/*.mp4
+ascii/

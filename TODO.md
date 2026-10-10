@@ -1,36 +1,34 @@
 # TODO - ffmpeg_techno
 
 Deliverables:
-1. A hardgroove techno beat + granular robotic-speech voice, synthesized by ffmpeg.
-2. A VapourSynth countdown visualizer, combined with the track into a final video.
+1. A 2-minute hardgroove techno track + granular robotic-speech voice + 303 acid,
+   synthesized by ffmpeg.
+2. A VapourSynth + GLSL (vs-placebo) Shadertoy-style visual, combined into a video.
 
-## Track (audio) - DONE
-BPM 140, 4/4, 8 bars, 48 kHz. beat=0.428571  eighth=0.214286  sixteenth=0.107143
-bar=1.714286  half-bar=0.857143  total=13.714286
+## Audio - DONE
+BPM 140, 70 bars, 2:00. beat=0.428571  sixteenth=0.107143  bar=1.714286
+- [x] hardgroove kit: kick, clap, closed hat, offbeat open hat (ohat),
+      syncopated toms (perc), rolling bass, granular robotic-speech voice (growl)
+- [x] 303 acid line (acid): per-16th pitch pattern, accents, per-note bend squawk,
+      resonant EQ + overdrive + acrusher
+- [x] 2-minute arrangement via per-stem `volume` automation (eval=frame):
+      intro / main1 / break / main2 / outro
+- [x] mix: 8 stems, kick sidechain ducks bass+voice bus
+- [x] master: 2-pass linear loudnorm + alimiter -> -14.0 LUFS, -1.6 dBFS TP
 
-- [x] hardgroove kit: kick (punchy sweep), clap (2&4), closed hat (16ths),
-      ohat (offbeat open hat), perc (syncopated toms), bass (rolling 16ths),
-      growl (granular robotic-speech voice)
-- [x] growl reworked from constant buzz -> per-grain pitch contour + syllable
-      windows + formants so it reads as robotic speech
-- [x] mix: 7 stems, kick sidechain ducks bass+voice bus
-- [x] master: 2-pass linear loudnorm + alimiter (level=disabled) -> -14.4 LUFS,
-      -1.5 dBFS true peak
-- [x] verified: scripts valid, deterministic, waveform/spectrum proofs
-
-## Visualizer video - DONE
-- [x] local venv + vapoursynth numpy (R81 abi3 on Py3.14); `vapoursynth config`
-- [x] visualizer.vpy: numpy STFT + film-leader countdown (sweep hand, crosshair,
-      7-segment numerals 8..1 per bar, grain, scratch flicker, kick strobe/jitter,
-      amber spectrum bars)
-- [x] build_video.ps1: vspipe -> ffmpeg mux/encode -> MP4 (+ 720p preview)
-- [x] output/techno_visualizer.mp4 (~46 MB) + 720p (~10 MB)
+## Video - DONE
+- [x] venv + vapoursynth numpy vs-placebo (R81 abi3 on Py3.14)
+- [x] visualizer.vpy: numpy audio strip -> YUV444P16 -> core.placebo.Shader (GLSL
+      kaleidoscopic neon acid tunnel, `frame` for time, `random`, strip for audio)
+      -> 7-segment countdown numeral (70..1) overlay -> YUV420P8
+- [x] fixed: shader output matrix (matrix=5) + resize matrix_in_s for colorspace path
+- [x] build_video.ps1 -> output/techno_visualizer.mp4 (1080p, 120 s) + 720p preview
 - [x] docs updated (README, SPEC)
 
 ## Notes / risks
-- ffmpeg eval has no user vars -> constants repeated inline; BPM change ripples
-  through every filter file and `BAR` in visualizer.vpy.
-- Visualizer drawing pass ~2.7 fps -> full clip ~2.5 min.
-- `vspipe` needs `vapoursynth config` once (writes %APPDATA%\vapoursynth).
-- Re-measure loudnorm values in filters/master.txt if tempo/pattern changes.
-- `alimiter` must use `level=disabled` (default auto-level boosts over ceiling).
+- ffmpeg eval has no user vars; tempo changes ripple through every filter + `BAR`.
+- vs-placebo Shader needs a Vulkan GPU (AMD RX 6800M, ~60 fps).
+- custom shaders are not raw Shadertoy: use `frame` for time, HOOKED_tex for input.
+- re-measure loudnorm in filters/master.txt after any tempo/pattern change.
+- `alimiter` must use `level=disabled`.
+- .gitignore now excludes output/stems, output/*.mp4, output/logs (too large for git).

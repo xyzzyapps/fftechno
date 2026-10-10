@@ -1,125 +1,107 @@
 # ffmpeg_techno
 
-A **hardgroove techno beat** with a **granular robotic-speech** voice, synthesized
-**entirely by ffmpeg**. There is no Python, no DAW, no sampler and no external
-synth: every sound is an ffmpeg `eval` expression (`aevalsrc`) plus native DSP
-filters, sequenced by modulo-gated envelopes.
+A **two-minute hardgroove techno track** with a **granular robotic-speech** voice
+and a **303 acid** line, synthesized **entirely by ffmpeg** (no DAW, no sampler),
+plus a **VapourSynth + GLSL (vs-placebo)** Shadertoy-style visualizer combined into
+a final video.
 
-Output: `output/techno.wav` - 48 kHz stereo, 8 bars @ 140 BPM (13.77 s),
--14.4 LUFS integrated, -1.5 dBFS true peak.
+Outputs:
+- `output/techno.wav` - 48 kHz stereo, 2:00, **-14.0 LUFS**, **-1.6 dBFS** true peak
+- `output/techno_visualizer.mp4` - 1920x1080 30 fps, shader visual (~168 MB)
+- `output/techno_visualizer_720p.mp4` - web preview (~79 MB)
 
 ## Requirements
 
-- `ffmpeg` / `ffprobe` on `PATH` (verified with the gyan.dev full build; needs
-  `aevalsrc`, `acrusher`, `asoftclip`, `sidechaincompress`, `alimiter`,
-  `loudnorm`, `equalizer`, `highpass`, `lowpass`, `acompressor`).
-- PowerShell (only to run the optional `build.ps1`; you can also call ffmpeg by hand).
+- `ffmpeg` / `ffprobe` on `PATH` (gyan.dev full build: needs `aevalsrc`, `acrusher`,
+  `asoftclip`, `sidechaincompress`, `alimiter`, `loudnorm`, `equalizer`, `highpass`,
+  `lowpass`, `acompressor`).
+- PowerShell (to run the build scripts; you can also call ffmpeg by hand).
+- For the video: a local venv with `vapoursynth`, `numpy`, `vs-placebo`.
 
-## Build
+## Build the audio
 
 ```powershell
 pwsh -File build.ps1
 ```
 
-Or run the raw commands (this is all `build.ps1` does):
+Raw commands (all `build.ps1` does):
 
 ```powershell
-# 1) stems
-foreach ($s in 'kick','clap','hat','ohat','perc','bass','growl') {
+foreach ($s in 'kick','clap','hat','ohat','perc','bass','growl','acid') {
   ffmpeg -hide_banner -v error -filter_complex_script "filters/$s.txt" `
     -map "[out]" -c:a pcm_f32le "output/stems/$s.wav" -y
 }
-
-# 2) mix + sidechain duck  -> output/mix_pre.wav
 ffmpeg -hide_banner -v error `
   -i output/stems/kick.wav -i output/stems/clap.wav -i output/stems/hat.wav `
-  -i output/stems/ohat.wav -i output/stems/perc.wav `
-  -i output/stems/bass.wav -i output/stems/growl.wav `
+  -i output/stems/ohat.wav -i output/stems/perc.wav -i output/stems/bass.wav `
+  -i output/stems/growl.wav -i output/stems/acid.wav `
   -filter_complex_script filters/mix.txt -map "[out]" -c:a pcm_f32le output/mix_pre.wav -y
-
-# 3) master (2-pass linear loudnorm) -> output/techno.wav
 ffmpeg -hide_banner -v error -i output/mix_pre.wav `
   -filter_complex_script filters/master.txt -map "[out]" -c:a pcm_s16le output/techno.wav -y
 ```
 
-To audition a single instrument, render just its stem (step 1) and play the WAV.
+## Build the video
+
+```powershell
+python -m venv .venv
+.venv\Scripts\pip install vapoursynth numpy vs-placebo
+.venv\Scripts\vapoursynth config        # one-off: registers Python paths for vspipe
+pwsh -File build_video.ps1
+```
 
 ## Layout
 
 ```
-filters/kick.txt    punchy pitch-swept sine kick, 4-on-the-floor
-filters/clap.txt    noise burst on beats 2 & 4
-filters/hat.txt     short high-passed noise on 16ths (closed hat)
-filters/ohat.txt    offbeat open hat (on the "&" of every beat)
-filters/perc.txt    syncopated pitched toms/congas (tribal groove)
-filters/bass.txt    rolling saw bass, 16-step pattern (low-passed)
-filters/growl.txt   granular robotic-speech voice  <-- the centrepiece
-filters/mix.txt     7 stems -> sidechain duck vs kick -> bus
-filters/master.txt  two-pass linear loudnorm + limit -> final
-build.ps1           runs the three passes
-output/             techno.wav, stems/, mix_pre.wav, logs/ (spectra, proofs)
+filters/kick.txt    punchy 4-on-the-floor kick
+filters/clap.txt    clap on 2 & 4
+filters/hat.txt     closed 16th hats
+filters/ohat.txt    offbeat open hat
+filters/perc.txt    syncopated toms/congas
+filters/bass.txt    rolling saw bass
+filters/growl.txt   granular robotic-speech voice
+filters/acid.txt    303 acid line (resonant saw, accents, slides)
+filters/mix.txt     8 stems + section automation -> sidechain -> bus
+filters/master.txt  two-pass linear loudnorm + limiter -> final
+build.ps1           audio passes
+visualizer.vpy      VapourSynth + GLSL shader visual
+build_video.ps1     vspipe -> ffmpeg mux/encode -> MP4
+output/             techno.wav, techno_visualizer*.mp4, stems/, logs/
 ```
 
-Each `filters/*.txt` is an ffmpeg `-filter_complex_script` graph (a source and
-effects ending in the label `[out]`).
+Each `filters/*.txt` is an ffmpeg `-filter_complex_script` graph ending in `[out]`.
 
 ## How it works (short version)
 
 - **Sequencing without a sequencer.** `aevalsrc` evaluates a math expression per
-  sample. A local time `mod(t, period)` turns a continuous expression into a
-  repeating pattern (kick every beat, closed hats every 16th, offbeat open hat on
-  the "&", clap on 2 & 4, toms on a syncopated 16th pattern).
-- **Hardgroove.** 140 BPM, a punchy pitch-swept kick, offbeat open hats and
-  pitched tom/conga accents over a rolling 16th bass give the driving hardgroove
-  feel.
-- **Granular robotic speech.** The voice multiplies a formant-rich FM carrier by a
-  *grain train* (four overlapping Hann grains, `w(x)=sin(PI*x)^2`) and by a
-  per-slot syllable window. A per-grain pitch contour (`1.00, 1.19, 1.08, ...`)
-  gives speech-like intonation; ring modulation adds the robot; formant
-  `equalizer` bumps, `acrusher` and `asoftclip` finish it.
+  sample; `mod(t, period)` turns it into a repeating pattern (kick every beat,
+  closed hats every 16th, offbeat open hat on the "&", clap on 2 & 4, toms on a
+  syncopated pattern).
+- **Hardgroove.** 140 BPM, punchy kick, offbeat open hats, tribal toms, rolling
+  16th bass. **70 bars / 2:00**, arranged with per-stem `volume` automation
+  (`eval=frame`) into intro / main / break / main2 / outro.
+- **303 acid.** A saw oscillator with a per-16th pitch pattern, accent steps and a
+  per-note pitch-bend "squawk", then resonant `equalizer` peaks + `asoftclip`
+  overdrive + `acrusher` -> acid.
+- **Granular robotic speech.** A formant-rich FM carrier multiplied by a grain
+  train and a per-slot syllable window, with a per-grain pitch contour, ring mod
+  and formant EQ.
 - **Glue.** Kick keys a `sidechaincompress` on the bass+voice bus; the master is
-  compressed, limited and normalised to -14 LUFS / -1 dBTP.
+  linearly normalised to -14 LUFS with a true-peak limiter.
 
-See `SPEC.md` for the full specification, diagrams and the exact expressions.
+See `SPEC.md` for the full spec, expressions and diagrams.
 
-## Visualizer + final video (VapourSynth)
+## Visualizer + final video (VapourSynth + GLSL)
 
-`visualizer.vpy` is a VapourSynth script that renders an audio-reactive visual
-from `output/techno.wav` in a **film-leader "countdown" style**: heavy grain, a
-rotating sweep hand (one revolution per bar) with crosshair, a large 7-segment
-numeral counting down 8..1 one per bar, occasional scratch flicker, kick strobes
-and jitter, and the spectrum as amber audio-reactive bars along the bottom.
-`ffmpeg` muxes the audio and encodes.
+`visualizer.vpy` runs a real GLSL shader via **vs-placebo** (`core.placebo.Shader`):
+- VapourSynth writes a small audio data-strip (64 spectrum bands + bass + kick +
+  energy) into the top rows of a YUV444P16 clip each frame.
+- A Shadertoy-style procedural shader - a rotating kaleidoscopic neon tunnel with a
+  glowing core, audio-reactive spokes/rays, kick glitches and grain - generates the
+  whole visual. libplacebo custom shaders have no `iTime`, but vs-placebo exposes
+  the `frame` uniform, so the shader animates on `float(frame)/FPS`; it reads the
+  strip via `HOOKED_tex` for audio reactivity.
+- A two-digit 7-segment **countdown numeral** (70 -> 1, one per bar) is overlaid.
 
-The visualizer needs a local venv (one-off setup):
+The shader runs on the GPU (~60 fps), so the full 2-minute render is a few minutes.
 
-```powershell
-python -m venv .venv
-.venv\Scripts\pip install vapoursynth numpy
-.venv\Scripts\vapoursynth config   # one-off: registers Python paths for vspipe
-```
-
-Build the video:
-
-```powershell
-pwsh -File build_video.ps1
-```
-
-Outputs / verify:
-
-- `output/techno_visualizer.mp4` - 1920x1080, 30 fps, H.264 CRF 20, AAC 192k (~46 MB)
-- `output/techno_visualizer_720p.mp4` - web preview, 1280x720 CRF 22 (~10 MB)
-- `ffprobe output/techno_visualizer.mp4`
-
-Tweak the look via the constants at the top of `visualizer.vpy` (W, H, FPS,
-NBARS, palette). The drawing pass runs ~2 fps, so a full clip takes a few minutes.
-
-## Verify
-
-```powershell
-# loudness + true peak
-ffmpeg -i output/techno.wav -filter_complex ebur128=peak=true -f null -
-
-# quickly validate any filter graph without encoding
-ffmpeg -v error -filter_complex_script filters/growl.txt -map "[out]" -f null -
-```
+Verify: `ffprobe output/techno_visualizer.mp4`.
