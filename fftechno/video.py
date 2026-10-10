@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import time
 from pathlib import Path
 
 from . import config as C
@@ -60,7 +61,18 @@ def re_level(factor: float, ceiling: float = 0.70) -> None:
         ffmpeg(["-y", "-i", target, "-i", boost, "-map", "0:v", "-map", "1:a",
                 "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest",
                 "-movflags", "+faststart", tmp])
-        Path(tmp).replace(target)
+        _replace(tmp, target)
+
+
+def _replace(src: Path, dst: Path, attempts: int = 20) -> None:
+    """Replace *dst* with *src*, retrying through transient Windows file locks."""
+    for _ in range(attempts):
+        try:
+            src.replace(dst)
+            return
+        except PermissionError:
+            time.sleep(0.5)
+    raise SystemExit(f"could not replace {dst} (file locked by another process?)")
 
 
 def build(*, boost: float = 1.0, static: bool = False) -> None:
