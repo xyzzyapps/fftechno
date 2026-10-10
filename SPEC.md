@@ -417,3 +417,70 @@ whose amplitude decays, plus a click, anti-aliased (192 kHz -> lowpass -> 48 kHz
 This complements `song.md` (arrangement + mix effects): `sounds.md` defines the
 synths, `song.md` the arrangement. The kit's existing `filters/*.txt` remain the
 hand-authored versions unless a generated instrument reuses their name.
+
+---
+
+## 22. Command reference
+
+| Command | Effect |
+|---------|--------|
+| `python -m fftechno audio` | IR + vocals + 12 stems -> mix -> master (`output/techno.wav`) |
+| `python -m fftechno synth` | generate `filters/<name>.txt` from `sounds.md` |
+| `python -m fftechno video [--boost F] [--static]` | VapourSynth->ffmpeg render + 720p preview (+ optional re-level / frozen frame) |
+| `python -m fftechno all [--boost F] [--static]` | audio then video |
+| `python -m fftechno boost F` | re-encode the MP4 audio at gain `F` (video copied) |
+
+Package entry points: `fftechno.cli:main` (console script) and `python -m fftechno`.
+
+## 23. Control-surface grammar (song.md, sounds.md)
+
+`song.md` - scalars plus four tables, all parsed by `fftechno/arrangement.py`:
+
+- scalars `bpm`, `bars`, `fade_bars`;
+- **Boosts**: `| stem | boost |`;
+- **Sections**: `| bars | <stem> | ... |` where every column after `bars` is a stem
+  and each cell is a gain; ranges are `start-end` in bars;
+- **Pan**: `| stem | mode | left | right |` with `mode` in {center, haas, stereo};
+- **Effects**: `| effect | value |` with keys from `DEFAULT_EFFECTS`.
+
+`sounds.md` - **Instruments**: `| name | type | parameters |` with `type` from
+`fftechno/synth.py` `GENERATORS` and `parameters` a comma-separated `key=value` list.
+
+Validation rules: section ranges must be contiguous and the last end must equal
+`bars`; a Sections column must be a known stem (`MIX_INPUTS` in `config.py`);
+an unknown instrument `type` or Effects key raises a clear error.
+
+## 24. Requirements and environment
+
+- **ffmpeg / ffprobe** (gyan.dev full build). Filters used: `aevalsrc`, `sine`,
+  `random` (eval), `asubboost`, `asoftclip`, `acrusher`, `equalizer`,
+  `highpass`, `lowpass`, `asplit`, `amix`, `pan`, `haas`, `extrastereo`,
+  `sidechaincompress`, `acompressor`, `alimiter`, `loudnorm`, `afir`,
+  `aresample`, `aformat`, `adelay`, `apad`, `volume` (`eval=frame`).
+- **Python 3.10+** - the tooling uses the standard library only (no third-party deps).
+- **Video** - a venv with `vapoursynth`, `numpy`, `vs-placebo` (provides
+  `vspipe.exe`); `vapoursynth config` once; a **Vulkan GPU** for the GLSL shader.
+- **Vocals** - `espeak-ng` extracted under `tools/` (not a system install).
+
+File inventory: `fftechno/*.py`, `song.md`, `sounds.md`, `filters/*.txt`,
+`visualizer.vpy`, `pyproject.toml`, `LICENSE`, `README.md`, `SPEC.md`,
+`TODO.md`; generated: `output/techno.wav`, `output/techno_visualizer*.mp4`,
+`output/stems/*.wav`, `output/logs/*`.
+
+Note: section 7 (the old `filters/mix.txt` description) is superseded by sections
+20 and 23 - the mix graph is generated.
+
+## 25. Troubleshooting / FAQ
+
+- **Where are failures logged?** `output/logs/vspipe.log` and
+  `output/logs/ffmpeg_video.log` (video); the generated mix graph is written to
+  `output/logs/mix.txt` for inspection.
+- **Video encoder fails (exit -22)?** Usually a broken frame source - check
+  `vspipe.log`. Image decode failures are already tolerated (blank grid fallback).
+- **"no path between colorspaces" in the shader step?** `core.placebo.Shader` must
+  be called with `matrix=5`; the follow-up resize needs `matrix_in_s`.
+- **Loudness numbers look stale?** They can't be - the master graph is generated from
+  the measured mix each run (no hard-coded values).
+- **No vocals?** Install espeak-ng under `tools/` (see Setup).
+- **Can I use a different song length?** Yes - change `bars` (and the section rows).
+- **Noncommercial only?** Yes - PolyForm Noncommercial 1.0.0 (see `LICENSE`).

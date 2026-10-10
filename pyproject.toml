@@ -5,6 +5,7 @@ description = "Hardgroove techno track (ffmpeg synthesis) + ASCII VapourSynth vi
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []
+license = { file = "LICENSE" }
 
 [project.scripts]
 fftechno = "fftechno.cli:main"

@@ -73,8 +73,8 @@ on the grid.
 
 ### Arrangement
 
-The arrangement is per-stem gain automation in `filters/mix.txt` (volume follows
-time with `eval=frame`). Seven regions:
+The arrangement is per-stem gain automation **generated from `song.md`** (the
+volume follows time with `eval=frame`). Seven regions:
 
 | Bars | Time | Section | Notes |
 |------|------|---------|-------|
@@ -137,42 +137,152 @@ python -m fftechno boost 2.0      # re-level the finished MP4s (video copied)
 `audio` also regenerates the reverb IR and the espeak vocal stem. Put images
 (jpg/png) in `ascii/`; every image is used at least 3 times in the video.
 
-## Editing the arrangement (`song.md`)
+## Sequencing music - a new-user guide
 
-The arrangement is **user-programmable** in `song.md` - a plain markdown file.
-`python -m fftechno audio` regenerates the mix graph from it, so there is no hand
--edited `mix.txt` to maintain.
+You sequence the track by editing markdown, then running two commands. No DAW, no
+piano-roll, no samples - the notes are `aevalsrc` math and the arrangement is a
+table of gains over time.
 
-`song.md` has five parts:
+### The control files
 
-1. **Scalars** - `bpm`, `bars`, `fade_bars` (the final section fades to silence
-   over this many bars).
-2. **Boosts** table - a per-stem gain applied on top of the section gains (used to
-   balance the kit, e.g. `kick: 2.55`).
-3. **Sections** table - one row per section (`bars` range) and one column per
-   arranged stem; each cell is that stem's gain in that section (`0.00` mutes it).
-4. **Pan** table - per-stem stereo placement (`center`, `haas`, or `stereo` with
-   `left`/`right` gains).
-5. **Effects** table - global mix parameters: `reverb_send`, `reverb_hpf`,
-   `reverb_wet`, `sidechain_threshold/ratio/attack/release`, `stereo_width`,
-   `bus_threshold/ratio/attack/release`. Any row can be omitted to use the default.
+| file | what it controls |
+|------|------------------|
+| `song.md` | tempo, length, **when** each stem plays (section gains), panning, and the global mix effects |
+| `sounds.md` | **what** an instrument sounds like (optional; the shipped kit lives in `filters/`) |
 
-```
-| bars    | kick | clap | hat  | ohat | ... | acid |
-|---------|------|------|------|------|-----|------|
-| 0-8     | 0.90 | 0.00 | 0.50 | 0.00 | ... | 0.80 |
-| 8-32    | 1.00 | 0.70 | 0.55 | 0.50 | ... | 0.90 |
+Everything else is generated, or is a raw ffmpeg graph you never need to touch.
+
+### The 30-second loop
+
+```powershell
+# 1. edit song.md (and optionally sounds.md)
+# 2. rebuild the audio
+python -m fftechno audio
+# 3. listen
+ffplay output/techno.wav
 ```
 
-Times are in **bars** (1 bar = 4 beats at `bpm`). The Python turns the table into
-per-stem `volume=...:eval=frame` automation (`fftechno/arrangement.py`), adds the
-panning / kick side-chain / reverb bus, and writes `output/logs/mix.txt`.
+Repeat until it sounds right. When happy, render the video with
+`python -m fftechno video` (add `--boost 2.0` to re-level it hot).
 
-## Defining instruments (`sounds.md`)
+### `song.md`, part by part
 
-The synths themselves are markdown too. `sounds.md` lists `name | type | parameters`
-rows; `python -m fftechno synth` writes `filters/<name>.txt` from generators in
-`fftechno/synth.py`. Example - a basic 909 4-on-4 kick:
+**1. Header scalars**
+
+```markdown
+bpm: 140        # tempo; one bar = 4 beats = 4 * 60/bpm seconds
+bars: 140       # total length (4:00 at 140 BPM)
+fade_bars: 7    # the final section fades to silence over this many bars
+```
+
+**2. Boosts** - a fixed gain per stem, multiplied on top of the section gains.
+Use it to balance the kit (a kick usually needs to be much louder than a hat).
+
+```markdown
+| stem | boost |
+|------|-------|
+| kick | 2.55  |
+| hat  | 2.55  |
+| bass | 1.15  |
+```
+
+**3. Sections** - the arrangement itself. One row per time region; the first column
+is the bar range, every other column is a stem (the columns are the stems you are
+sequencing, from `MIX_INPUTS` in `fftechno/config.py`).
+
+```markdown
+| bars    | kick | clap | hat  | ohat | perc | ... | acid |
+|---------|------|------|------|------|------|-----|------|
+| 0-8     | 0.90 | 0.00 | 0.50 | 0.00 | 0.00 | ... | 0.80 |
+| 8-32    | 1.00 | 0.70 | 0.55 | 0.50 | 0.70 | ... | 0.90 |
+| 32-40   | 0.00 | 0.00 | 0.40 | 0.25 | 0.50 | ... | 1.00 |
+```
+
+Rules:
+- Rows are read top to bottom; `bars` is `start-end` (inclusive start, exclusive end).
+- Ranges should be contiguous and the last row's end should equal `bars`.
+- A cell is that stem's **gain during that range**: `1.00` = full, `0.50` = quieter,
+  `0.00` = muted.
+- Gains are relative - the mix is re-normalised to -13 LUFS afterwards, so balance
+  things against *each other*.
+
+**4. Pan** - where each stem sits in the stereo field.
+
+```markdown
+| stem | mode   | left | right |
+|------|--------|------|-------|
+| hat  | stereo | 0.62 | 0.38  |   # leaked left
+| ohat | stereo | 0.38 | 0.62  |   # leaked right
+| perc | haas   |      |       |   # centred + Haas width
+| kick | center |      |       |
+```
+
+`mode` is `center` (both channels, full level), `haas` (centred + a Haas widener),
+or `stereo` (uses the `left`/`right` gains).
+
+**5. Effects** - global mix parameters (all optional; omit a row to keep its default).
+
+```markdown
+| effect              | value | what it does |
+|---------------------|-------|--------------|
+| reverb_send         | 0.7   | level into the reverb bus |
+| reverb_hpf          | 300   | high-pass on the send (keeps bass out of the reverb) |
+| reverb_wet          | 1.0   | reverb return level |
+| sidechain_threshold | 0.03  | kick side-chain: level at which ducking starts |
+| sidechain_ratio     | 12    | ducking strength |
+| sidechain_attack    | 5     | ducking attack (ms) |
+| sidechain_release   | 120   | ducking release (ms) |
+| stereo_width        | 1.3   | bus stereo widener |
+| bus_threshold       | 0.1   | master bus compressor threshold |
+| bus_ratio           | 3     | bus compressor ratio |
+| bus_attack          | 10    | bus compressor attack (ms) |
+| bus_release         | 150   | bus compressor release (ms) |
+```
+
+Times are in **bars** (1 bar = 4 beats at `bpm`). `fftechno/arrangement.py` turns
+the tables into per-stem `volume=...:eval=frame` automation, adds panning / the kick
+side-chain / the reverb bus, and writes the graph to `output/logs/mix.txt`.
+
+### Worked examples
+
+**Drop the kick for a breakdown (bars 40-56).** Insert a row and mute the drums:
+
+```markdown
+| 40-56   | 0.00 | 0.00 | 0.45 | 0.30 | 0.55 | ... | 1.10 |
+```
+
+**Bring the acid in later.** Set its intro cell to `0.00`.
+
+**Solo the bass.** Set every other stem to `0.00` in a row.
+
+**Change the tempo.** Set `bpm: 145` - durations follow automatically; the number of
+bars (and so the length) is unchanged.
+
+**Make it longer.** Raise `bars`, then extend/renumber the section rows to match.
+
+**Balance the kit.** Nudge the Boosts (e.g. `kick: 2.8`) - boosts are global, whereas
+section cells are per-section.
+
+### Adding a brand-new sound (advanced)
+
+1. **Define the synth** in `sounds.md` and generate its graph with
+   `python -m fftechno synth` (writes `filters/<name>.txt`).
+2. **Register it as a stem** in `fftechno/config.py`: add the name to `OSC_STEMS`
+   (so it gets rendered) and to `MIX_INPUTS` (so it has an input index); add a `Pan`
+   row for it.
+3. **Give it a column** in the `song.md` Sections table and set its gains.
+4. `python -m fftechno audio`.
+
+### `sounds.md` reference
+
+Types live in `fftechno/synth.py`; parameters are comma-separated `key=value` pairs:
+
+| type | parameters |
+|------|------------|
+| `kick` | `amp, f0, sweep, rate, decay, click_freq, click_decay, click_amt, bpm` |
+| `noise` | `amp, decay, hp, lp, period` |
+
+Example - the basic 909 4-on-4 kick:
 
 ```markdown
 | name    | type | parameters |
@@ -180,9 +290,19 @@ rows; `python -m fftechno synth` writes `filters/<name>.txt` from generators in
 | kick909 | kick | amp=0.9, f0=50, sweep=180, rate=50, decay=8, click_freq=1500, click_decay=250, click_amt=0.25 |
 ```
 
-This writes the `aevalsrc` filtergraph for that kick (pitch sweeping 230 -> 50 Hz
-with a click, anti-aliased). New instrument types are a generator function plus a
-`GENERATORS` entry.
+New instrument *types* are one generator function plus a `GENERATORS` entry.
+
+### Command reference
+
+| command | effect |
+|---------|--------|
+| `python -m fftechno audio` | rebuild `output/techno.wav` from `song.md` (vocals + IR + stems + mix + master) |
+| `python -m fftechno synth` | write `filters/<name>.txt` for every instrument in `sounds.md` |
+| `python -m fftechno video` | render the ASCII video from `output/techno.wav` (+ 720p preview) |
+| `python -m fftechno video --static` | a single frozen frame (skip animation) |
+| `python -m fftechno video --boost 2.0` | render and re-level the MP4 audio (video copied) |
+| `python -m fftechno all` | audio, then video |
+| `python -m fftechno boost 2.0` | re-level the existing MP4s only |
 
 ## Layout
 
@@ -221,6 +341,12 @@ There is no hand-written `master.txt` - the master graph is generated in
 - **Vocals + beeps.** Female espeak-ng phrases, and a Win-startup-style bell arpeggio.
 - **Quality.** Oscillators oversampled to 192 kHz then anti-alias filtered;
   `afir` convolution reverb; layering; groove velocity; dither.
+
+## License
+
+Released under the **PolyForm Noncommercial License 1.0.0** - see [`LICENSE`](LICENSE).
+Noncommercial use only (personal, hobby, research, evaluation); any commercial use
+requires a separate license from the copyright holder.
 
 ## Verify
 
