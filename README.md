@@ -1,5 +1,7 @@
 # fftechno
 
+[![Built with DeepSeek](https://img.shields.io/badge/Built%20with-DeepSeek-4D6BFE?logo=deepseek&logoColor=white)](https://www.deepseek.com/)
+
 A **four-minute hardgroove techno track** - granular robotic-speech voice, a 303
 acid line, and spoken female vocals - synthesized **entirely by ffmpeg** (no DAW,
 no sampler), plus a **black-and-white VapourSynth + GLSL** visual that turns images
