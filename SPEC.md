@@ -331,12 +331,115 @@ filters/bass.txt     instrument
 filters/growl.txt    instrument (granular robotic growl)
 filters/mix.txt      mix graph
 filters/master.txt   master graph (2-pass loudnorm values)
-build.ps1            orchestrates phases 1-3
+build.ps1            orchestrates audio phases 1-3
+visualizer.vpy       VapourSynth visualizer script
+build_video.ps1      vspipe -> ffmpeg mux/encode -> MP4
 README.md            quickstart
 SPEC.md              this document
 TODO.md              task log
-output/techno.wav    deliverable
+output/techno.wav               audio deliverable
+output/techno_visualizer.mp4    video deliverable (1080p)
+output/techno_visualizer_720p.mp4  web preview
 output/stems/*.wav   intermediate stems
 output/mix_pre.wav   intermediate bus
-output/logs/*.png    spectra/waveform proofs
+output/logs/*        spectra/waveform/frame proofs, build logs
 ```
+
+---
+
+## 15. Visualizer (VapourSynth) and final video
+
+### 15.1 Purpose
+
+Render an audio-reactive visual from `output/techno.wav` with VapourSynth and
+combine it with the track into a final MP4. Aesthetic target: **dark Berlin
+warehouse techno** - near-black concrete, hypnotic rings, perspective floor grid,
+neon spectrum tubes with a wet-floor reflection, oscilloscope trace, kick strobes,
+chromatic glitch, scanlines and film grain.
+
+### 15.2 Environment and data flow
+
+VapourSynth R81 (pip, `cp312-abi3` wheel) runs on the project Python 3.14.
+This ffmpeg build has **no** VapourSynth input, so the pipeline is:
+
+```
+visualizer.vpy  --vspipe -c y4m-->  stdout  --pipe-->  ffmpeg  --mux audio-->  MP4
+   (numpy draws RGB24)            (YUV420P8 y4m)      (libx264 + aac)
+```
+
+One-off setup (documented in README): local `.venv`, `pip install vapoursynth
+numpy`, then `vapoursynth config` (registers Python/lib paths for `vspipe`; writes
+`%APPDATA%\vapoursynth\vapoursynth.toml` - the only artifact outside the project).
+
+### 15.3 the .vpy script
+
+- **Audio analysis (once, at script load).** `wave` + numpy reads the WAV; mono
+  mixdown; STFT with a 2048-sample Hann window and hop `sr/FPS = 1600`. Per frame
+  it computes 64 log-spaced band magnitudes (28 Hz - 16 kHz), a low band (<120 Hz)
+  and a high band (>6 kHz), all dB-normalised against percentiles, plus an
+  oscilloscope trace (a 2048-sample window resampled to W points).
+- **Post-processing of the analysis.** Per-band levels are temporally smoothed
+  (fast attack 0.55, slow release 0.80) and peak-hold caps decay at 0.028/frame.
+  The low band drives a kick envelope (fast attack, ~0.25 s release).
+- **Static layers (once).** A concrete noise field, a vignette mask, a scanline
+  mask, a grain tile, the spectrum bar geometry, and the perspective floor grid
+  geometry are precomputed to keep the per-frame cost down.
+- **Per-frame drawing** (`compose(n)` -> float RGB, 0..1), composited additively:
+  1. background = near-black cool tint + concrete noise + kick-reactive horizon glow;
+  2. hypnotic concentric rings centred above the floor, radius/width driven by the
+     bass, colour slowly rotating;
+  3. receding perspective floor: horizontal lines scrolling toward the viewer
+     (`y = horizon + (H-horizon)*frac^2`) plus vertical lines converging on the
+     vanishing point, brightness pulsing on the kick;
+  4. a sweeping light beam modulated by the hi-hat band;
+  5. 64 neon spectrum tubes rising from the horizon with a bloom halo, a bright
+     core edge, a dim mirrored wet-floor reflection, and a peak-hold cap;
+  6. a glowing oscilloscope trace across the middle;
+  7. kick strobe (cool desaturated flash), chromatic glitch (roll R/B by a few px
+     on strong kicks), and per-frame film grain;
+  8. post: scanlines and vignette.
+- **Frame write bridge.** VapourSynth R81 exposes planes as read-only memoryviews.
+  Writing uses `frame.copy()` then `get_write_ptr(plane).value` + `get_stride(plane)`
+  with ctypes to build a writable numpy array. Planes are planar RGB24 in **G, B, R**
+  order.
+- **Output format.** The RGB24 clip is converted with the built-in
+  `core.resize.Bicubic(..., format=vs.YUV420P8, matrix_s="470bg", range_s="limited")`
+  for y4m piping. Note: `matrix_in_s` must NOT be set for RGB->YUV (raises
+  "RGB color family cannot have YUV matrix coefficients").
+- **ModifyFrame callback** must be `def draw(n, f)` - the second argument is passed
+  by keyword `f`.
+
+### 15.4 Encode and mux
+
+```
+vspipe -c y4m visualizer.vpy - | ffmpeg -f yuv4mpegpipe -i - -i output/techno.wav \
+  -c:v libx264 -preset slow -crf 20 -tune film -pix_fmt yuv420p \
+  -c:a aac -b:a 192k -shortest -movflags +faststart output/techno_visualizer.mp4
+```
+
+`build_video.ps1` runs the above, then makes a 720p preview by transcoding the
+master (`scale=1280:720`, CRF 22).
+
+### 15.5 Parameters and acceptance
+
+| Parameter | Value |
+|-----------|-------|
+| Resolution / FPS | 1920x1080 / 30 |
+| Frames | 444 (video 14.7667 s; audio 14.769 s, `-shortest`) |
+| Video codec | H.264 (libx264), CRF 20, `-tune film`, yuv420p |
+| Audio codec | AAC 192 kbps |
+| Deliverables | `techno_visualizer.mp4` (~120 MB), `techno_visualizer_720p.mp4` (~19 MB) |
+
+Acceptance: `vspipe -i visualizer.vpy -` reports 1920x1080 / 30 fps / YUV420P8 /
+444 frames; `ffprobe` reports one H.264 1080p30 stream and one AAC stream of equal
+~14.77 s duration; sampled frames show the bars tracking the spectrum. Drawing runs
+at ~2 fps, so a full render takes a few minutes.
+
+### 15.6 Visualizer risks / limitations
+
+- This ffmpeg cannot read `.vpy` directly; `vspipe` must pipe y4m.
+- `vspipe` requires the one-off `vapoursynth config` step after `pip install`.
+- The 1080p master is large because full-frame film grain is expensive to encode;
+  the 720p preview is the practical share format.
+- The visual is deterministic: it is a pure function of the WAV and the frame index.
+

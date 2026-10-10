@@ -77,6 +77,37 @@ effects ending in the label `[out]`).
 
 See `SPEC.md` for the full specification, diagrams and the exact expressions.
 
+## Visualizer + final video (VapourSynth)
+
+`visualizer.vpy` is a VapourSynth script that renders an audio-reactive visual
+from `output/techno.wav` - dark Berlin warehouse: hypnotic bass-reactive rings, a
+receding perspective floor grid, 64 neon spectrum tubes with a wet-floor
+reflection and peak-hold caps, an oscilloscope trace, kick-driven strobes and
+chromatic glitch, scanlines and film grain. `ffmpeg` muxes the audio and encodes.
+
+The visualizer needs a local venv (one-off setup):
+
+```powershell
+python -m venv .venv
+.venv\Scripts\pip install vapoursynth numpy
+.venv\Scripts\vapoursynth config   # one-off: registers Python paths for vspipe
+```
+
+Build the video:
+
+```powershell
+pwsh -File build_video.ps1
+```
+
+Outputs / verify:
+
+- `output/techno_visualizer.mp4` - 1920x1080, 30 fps, H.264 CRF 20, AAC 192k (~120 MB)
+- `output/techno_visualizer_720p.mp4` - web preview, 1280x720 CRF 22 (~19 MB)
+- `ffprobe output/techno_visualizer.mp4`
+
+Tweak the look via the constants at the top of `visualizer.vpy` (W, H, FPS,
+NBARS, palette). The drawing pass runs ~2 fps, so a full clip takes a few minutes.
+
 ## Verify
 
 ```powershell
