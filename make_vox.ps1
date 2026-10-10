@@ -11,7 +11,7 @@ New-Item -ItemType Directory -Force -Path output/logs,output/stems | Out-Null
 
 $phrases = @(
     "speak to me", "come on", "feel it", "hard groove", "let go",
-    "trust me", "speak with me", "lock in", "take me higher", "hands up"
+    "trust me", "lock in", "take me higher", "hands up"
 )
 
 Write-Host "espeak-ng: female vocals ($($phrases.Count) phrases)"
