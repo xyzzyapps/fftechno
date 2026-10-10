@@ -1,42 +1,30 @@
-# fftechno - TODO / status
+# fftechno - status
 
-4-minute hardgroove techno track (ffmpeg-only synthesis) + B/W ASCII video.
-Tooling is pure Python (`fftechno/` package); no shell scripts.
+A four-minute hardgroove techno track (all sound synthesized by ffmpeg) plus a
+black-and-white ASCII video, driven by markdown.
 
-## Audio - DONE
-BPM 140, 140 bars, 4:00. Stems: kick, clap, hat, ohat, perc, shaker, bongo, rim,
-bass, growl, acid, beeps (+ espeak-ng female vox).
+## Done
 
-- [x] hardgroove kit + offbeat hats + toms + bongo + rim + shaker
-- [x] 303 acid: bright/dark sweep + real resonant 24 dB/oct low-pass
-- [x] granular robotic-speech voice
-- [x] female espeak-ng vocals (9 phrases x 3 placements)
-- [x] Win-startup-style beep arpeggio
-- [x] 4-minute arrangement (per-stem volume automation)
-- [x] quality: 192 kHz oversampling, afir convolution reverb, layering,
-      groove velocity, per-element saturation, dither
-- [x] drums boosted; bass ducked; master -13.0 LUFS / -1.0 dBFS
+- `song.md` - arrangement + mix: `bpm/bars/fade_bars`, `sidechain_key`, `low_bus`,
+  and the tables **Stems, Boosts, Sections, Pan, Effects, Levels**.
+- `sounds.md` + `templates/` - all 12 instruments parameterised (kick, clap, hat,
+  ohat, perc, bongo, rim, shaker, bass, acid, growl, beeps) via `{{key}}` and
+  `{{if_steps(seq; grid; default)}}`.
+- **Lossless port**: the generated `filters/*.txt` reproduce the original graphs
+  (<= -213 dB, float noise); `output/techno.wav` is byte-identical to the reference.
+- Drum rhythm lives inside the instrument (`gates` / `pitches`), so hit tails are
+  preserved; no mix-level gate.
+- Master: two-pass linear loudnorm -> -13.0 LUFS / -1.0 dBFS.
+- Build lock prevents overlapping builds from corrupting stems.
+- Video: `visualizer.vpy` (VapourSynth + GLSL, ASCII + B/W overlay).
+- Docs: `README.md` (beginner/musician), `SPEC.md` (technical), `LICENSE`.
 
-## Video - DONE
-- [x] ASCII images from ascii/ + B/W Berlin overlay (GLSL via vs-placebo)
-- [x] every image used at least 3 times (shuffled REUSE=3 playlist)
-- [x] final MP4 audio re-leveled (boost command)
+## Optional next
 
-## Tooling - DONE
-- [x] replaced PowerShell with the `fftechno` Python package (stdlib only)
-- [x] removed build.ps1 / build_video.ps1 / make_vox.ps1
-- [x] removed filters/master.txt (master graph generated in Python)
-- [x] visualizer.vpy de-cluttered
-- [x] pyproject.toml + `python -m fftechno` CLI
+- Expose more parameters in markdown: growl grain timings, vox phrases/placements.
+- Optional `Patterns` table in `song.md` as a friendlier front-end to `gates`.
+- Re-render the video against the restored audio.
 
-## Notes / risks
-- 192 kHz stem generation is slow (~8 min for 12 stems).
-- Re-run `python -m fftechno audio` after any mix/filter change.
-- gitignore excludes .venv, tools/, ascii/, __pycache__, output/stems, output/*.mp4.
-- Remaining gap vs a DAW: ffmpeg IIR filters can't be automated per sample; no true
-  swing; near-single-voice synths. Closing that needs a real synth engine (still
-  sample-free).
+## Known issues
 
-- [x] programmable arrangement via song.md (fftechno/arrangement.py; filters/mix.txt removed)
-
-- [x] markdown instrument definitions (sounds.md + fftechno/synth.py; kick/noise generators)
+- None outstanding.
