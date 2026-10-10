@@ -79,17 +79,20 @@ def _simple(text: str, values: dict[str, str], name: str) -> str:
     return _PLACEHOLDER.sub(repl, text)
 
 
-def _val(values: dict[str, str], key: str, name: str) -> str:
-    if key not in values:
-        raise SystemExit(f"sounds.md: instrument '{name}' needs value '{key}'")
-    return values[key]
+def _val(values: dict[str, str], token: str, name: str) -> str:
+    """Resolve an ``if_steps`` argument: a param name, or a numeric literal."""
+    if token in values:
+        return values[token]
+    if re.fullmatch(r"-?[0-9.]+", token):
+        return token
+    raise SystemExit(f"sounds.md: instrument '{name}' needs value '{token}'")
 
 
 def _render(template: str, values: dict[str, str], name: str) -> str:
     def expand(match: re.Match[str]) -> str:
         keys = [a.strip() for a in match.group(1).split(";")]
         if len(keys) != 3:
-            raise SystemExit(f"if_steps needs 3 ';'-separated keys in '{name}'")
+            raise SystemExit(f"if_steps needs 3 ';'-separated args in '{name}'")
         seq = _val(values, keys[0], name)
         grid = _val(values, keys[1], name)
         default = _val(values, keys[2], name)

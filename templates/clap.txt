@@ -1,1 +1,1 @@
-aevalsrc='{{amp}}*((random(0)*2-1)*exp(-{{decay1}}*mod(t,{{step}}))+{{tone_amt}}*sin(2*PI*{{tone_f}}*mod(t,{{step}}))*exp(-{{decay2}}*mod(t,{{step}})))':s={{sr}}:d={{dur}}[src];[src]highpass=f={{hp}},lowpass=f={{lpc}},lowpass=f={{lp}},aresample={{osr}}[out]
+aevalsrc='{{amp}}*((random(0)*2-1)*exp(-{{decay1}}*mod(t,{{beat}}))+{{tone_amt}}*sin(2*PI*{{tone_f}}*mod(t,{{beat}}))*exp(-{{decay2}}*mod(t,{{beat}})))*(gt(mod(floor(mod(t,{{bar}})/{{beat}}),2),0.5))':s={{sr}}:d={{dur}}[src];[src]highpass=f={{hp}},lowpass=f={{lpc}},lowpass=f={{lp}},aresample={{osr}}[out]

@@ -335,18 +335,20 @@ There are no built-in defaults: every value comes from `sounds.md`.
 - `python -m fftechno synth` substitutes the values and writes `filters/<name>.txt`;
   a missing placeholder fails loudly.
 
-Templates: `kick`, `clap`, `noise` (hat/ohat/shaker), `tom` (perc/bongo), `rim`,
+Templates: `kick`, `clap`, `hat`, `ohat`, `tom` (perc/bongo), `rim`, `shaker`,
 `bass`, `acid`, `growl`, `beeps`. Per-step sequences (notes, accents, phrases,
-pitches) are `\|`-separated lists expanded by `{{if_steps(seq; grid; default)}}`.
+pitches, drum `gates`) are `\|`-separated lists expanded by
+`{{if_steps(seq; grid; default)}}`.
 
 ```markdown
-step: 0.107143
-
 | name | template | parameters |
-| kick | kick.txt | amp=0.95, f0=48, sweep=220, rate=55, decay=24, click_amt=0.4, click_f=1200, ... |
+| kick | kick.txt | amp=0.95, beat=0.428571, f0=48, sweep=220, rate=55, decay=24, ... |
+| perc | tom.txt  | amp=0.7, pitches=196\|196\|147\|..., gates=1\|1\|0\|1\|0\|1\|1\|0\|..., ... |
 ```
 
-The *beats* are not defined here - they come from the **Patterns** table in `song.md`.
+The drum **rhythm** is a `gates` parameter (which 16ths hit) - and for the toms a
+`pitches` list - applied *inside* the instrument (on the source), so the hit tails
+are preserved. There is no mix-level gate.
 
 ### Command reference
 

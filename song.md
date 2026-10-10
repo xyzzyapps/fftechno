@@ -102,22 +102,6 @@ Global mix effect parameters (all optional; defaults used if a row is omitted).
 | bus_attack          | 10    |
 | bus_release         | 150   |
 
-## Patterns
-
-Each row is one bar of 16 steps (16th notes). A step is `x` (hit), `1`-`9`
-(velocity), or `.` (rest). Applied as a sample-accurate gate on the drum stems.
-
-| stem   | pattern          |
-|--------|------------------|
-| kick   | x...x...x...x... |
-| clap   | ....x.......x... |
-| hat    | xxxxxxxxxxxxxxxx |
-| ohat   | ..x...x...x...x. |
-| perc   | xx.x.xx.xx.x.xx. |
-| bongo  | ..x.x..x..x.x..x |
-| rim    | .x...x...x...x.. |
-| shaker | ..x...x...x...x. |
-
 ## Levels
 
 Fixed level for stems that are not section-arranged (their content timing lives in

@@ -32,16 +32,20 @@ def main(argv: list[str] | None = None) -> None:
     sub.add_parser("synth", help="generate filters/<name>.txt from sounds.md")
 
     args = parser.parse_args(argv)
-    if args.command == "audio":
-        audio.build()
-    elif args.command == "video":
-        video.build(boost=args.boost, static=args.static)
-    elif args.command == "all":
-        audio.build()
-        video.build(boost=args.boost, static=args.static)
-    elif args.command == "boost":
-        video.re_level(args.factor)
-    elif args.command == "synth":
-        from . import synth
-        for name in synth.generate():
-            print(f"wrote filters/{name}.txt")
+    from . import config as C
+    from .proc import build_lock
+
+    with build_lock(C.LOCK):
+        if args.command == "audio":
+            audio.build()
+        elif args.command == "video":
+            video.build(boost=args.boost, static=args.static)
+        elif args.command == "all":
+            audio.build()
+            video.build(boost=args.boost, static=args.static)
+        elif args.command == "boost":
+            video.re_level(args.factor)
+        elif args.command == "synth":
+            from . import synth
+            for name in synth.generate():
+                print(f"wrote filters/{name}.txt")

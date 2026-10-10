@@ -1,0 +1,1 @@
+aevalsrc='{{amp}}*(random(0)*2-1)*exp(-{{decay}}*mod(t+{{off}},{{beat}}))*if(lt(mod(t+{{off}},{{beat}}),{{win}}),1,0)':s={{sr}}:d={{dur}}[src];[src]highpass=f={{hp}},lowpass=f={{lp}},aresample={{osr}}[out]

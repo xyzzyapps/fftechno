@@ -1,9 +1,9 @@
 """Arrangement: parse ``song.md`` and build the mix filter graph.
 
-Nothing is hard-coded: the stem list and input order (Stems table), the side-chain
-key and low bus (scalars), the arranged stems (Sections columns), drum patterns
-(Patterns rows), pitches (in sounds.md), panning (Pan rows), fixed levels (Levels)
-and global effects (Effects rows) all come from markdown. Missing entries raise.
+The stem list and input order (Stems table), the side-chain key and low bus
+(scalars), the arranged stems (Sections columns), panning (Pan rows), fixed levels
+(Levels) and global effects (Effects rows) all come from markdown. Missing entries
+raise. The synth graph nodes are produced separately by ``synth.py`` from templates.
 """
 
 from __future__ import annotations
@@ -11,8 +11,6 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-
-STEPS_PER_BAR = 16
 
 
 def _cells(line: str) -> list[str]:
@@ -40,7 +38,6 @@ class Song:
     sections: list[tuple[int, int, dict[str, float]]] = field(default_factory=list)
     pan: dict[str, tuple] = field(default_factory=dict)
     effects: dict[str, float] = field(default_factory=dict)
-    patterns: dict[str, list[float]] = field(default_factory=dict)
     levels: dict[str, float] = field(default_factory=dict)
 
     @property
@@ -79,19 +76,6 @@ def _tables(text: str) -> list[tuple[list[str], list[list[str]]]]:
     return tables
 
 
-def _decode(pattern: str) -> list[float]:
-    """Decode a step string ('x' hit, '1'-'9' velocity, '.'/' ' rest) to gains."""
-    vals: list[float] = []
-    for ch in pattern.strip():
-        if ch in "xX":
-            vals.append(1.0)
-        elif ch.isdigit():
-            vals.append(int(ch) / 9.0)
-        else:
-            vals.append(0.0)
-    return (vals + [0.0] * STEPS_PER_BAR)[:STEPS_PER_BAR]
-
-
 def parse(path: Path) -> Song:
     """Parse the ``song.md`` control surface (all values required)."""
     text = path.read_text(encoding="utf-8")
@@ -115,8 +99,6 @@ def parse(path: Path) -> Song:
                 lo, hi = (int(x) for x in re.split(r"\s*-\s*", row[0]))
                 song.sections.append((lo, hi, {cols[k]: float(row[k + 1])
                                                for k in range(len(cols))}))
-        elif head[:2] == ["stem", "pattern"]:
-            song.patterns = {r[0]: _decode(r[1]) for r in rows}
         elif head[:2] == ["stem", "mode"]:
             for row in rows:
                 song.pan[row[0]] = (("stereo", float(row[2]), float(row[3]))
@@ -146,13 +128,6 @@ def _expr(gains: list[float], starts: list[float], fade: float) -> str:
     return "".join(parts) + tail + ")" * len(parts)
 
 
-def _gate(vals: list[float], bar: float, step: float) -> str:
-    """Per-step gate: velocity of the current 16th, 0 on a rest."""
-    key = f"floor(mod(t,{bar:.6f})/{step:.6f})"
-    parts = [f"if(eq({key},{s}),{v:g}," for s, v in enumerate(vals)]
-    return "".join(parts) + "0" + ")" * len(parts)
-
-
 def _pan(stem: str, src: str, pan: dict[str, tuple]) -> str:
     placement = _need(pan, stem, "Pan")
     if placement[0] == "center":
@@ -166,7 +141,6 @@ def _pan(stem: str, src: str, pan: dict[str, tuple]) -> str:
 def build_graph(song: Song) -> str:
     """Assemble the full mix filtergraph (a ``-filter_complex_script`` body)."""
     bar = song.bar_seconds
-    step = bar / STEPS_PER_BAR
     index = {name: i for i, name in enumerate(song.stems_order)}
     ir_index = len(song.stems_order)
     fx = song.effects
@@ -183,11 +157,7 @@ def build_graph(song: Song) -> str:
         boost = _need(song.boosts, stem, "Boosts")
         lines.append(f"[{index[stem]}]volume=volume="
                      f"'{boost:g}*{_expr(gains, starts, song.fade_bars * bar)}':eval=frame[{stem}v]")
-        src = f"{stem}v"
-        if stem in song.patterns:
-            lines.append(f"[{src}]aeval=exprs='val(0)*{_gate(song.patterns[stem], bar, step)}'[{stem}g]")
-            src = f"{stem}g"
-        lines.append(_pan(stem, src, song.pan))
+        lines.append(_pan(stem, f"{stem}v", song.pan))
 
     for stem, level in song.levels.items():
         lines.append(f"[{index[stem]}]volume={level:g},pan=stereo|c0=0.5*c0|c1=0.5*c0[{stem}]")
