@@ -6,3 +6,10 @@ output/logs/
 output/*.y4m
 output/stems/
 output/*.mp4
+
+/*.png
+/*.jpg
+/*.jpeg
+/*.webp
+/*.gif
+

@@ -333,3 +333,21 @@ the synths are near-single-voice. Closing those fully needs a real synth engine
   (speak to me, come on, feel it, hard groove, let go, trust me, speak with me,
   lock in, take me higher, hands up), each setrate=23500 (moderate pitch),
   reverb, and placed twice across the track (20 occurrences) via delay + mix.
+
+---
+
+## 18. Latest changes (4 minutes, louder drums, ascii policy, final boost)
+
+- **Duration 4:00 (240 s / 140 bars).** All stems d=240; mix.txt outro boundary
+  moved to 228.286 (fade over 11.714 s); ox.txt/eeps.txt pad to 240;
+  make_vox.ps1 phrases now placed 3x each (27 hits) across the 4 minutes.
+- **Drums louder**: kick/hat x2.55, clap x2.4, ohat x2.25, perc/bongo/rim x1.95,
+  shaker x1.875 (multipliers at the front of the drum olume= expressions);
+  bass x0.75 and a harder sidechain (threshold 0.03, ratio 12) so the kick cuts.
+- **ASCII policy**: the visualizer builds a shuffled playlist of REUSE=3 copies
+  of every image in scii/, so **each image appears at least 3 times**; the image
+  period = duration/(3*N_images); remaining slots are random. No featured bias.
+- **Final volume boost (150%)**: after rendering, the final 	echno_visualizer.mp4
+  audio is re-encoded from the clean master at olume=1.5 + limiter=limit=0.80
+  (headroom for AAC overshoot) with the video stream copied. Result ~ -9.8 LUFS.
+  This post-step does not re-render the video.

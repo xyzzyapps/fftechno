@@ -1,15 +1,15 @@
 # ffmpeg_techno
 
-A **three-minute hardgroove techno track** - granular robotic-speech voice, 303
-acid line, and a spoken "speak to me" vocal - synthesized **entirely by ffmpeg**
+A **four-minute hardgroove techno track** - granular robotic-speech voice, 303
+acid line, and spoken female vocals - synthesized **entirely by ffmpeg**
 (no DAW, no sampler), with a **black-and-white VapourSynth + GLSL** visual that
 turns images into **ASCII art** and draws Berlin techno overlays on top, muxed
 into a final video.
 
 Outputs:
-- `output/techno.wav` - 48 kHz stereo, 3:00, **-14.0 LUFS**, **-1.7 dBFS** true peak
-- `output/techno_visualizer.mp4` - 1920x1080 30 fps, ASCII + B/W shader (~258 MB)
-- `output/techno_visualizer_720p.mp4` - web preview (~128 MB)
+- `output/techno.wav` - 48 kHz stereo, 4:00, -13.0 LUFS
+- `output/techno_visualizer.mp4` - 1920x1080 30 fps, ASCII + B/W shader (final audio boosted 150%)
+- `output/techno_visualizer_720p.mp4` - web preview
 
 ## Requirements
 
@@ -88,8 +88,9 @@ output/             techno.wav, techno_visualizer*.mp4, stems/, logs/
 ## Visualizer (VapourSynth + GLSL, B/W)
 
 - Images from `ascii/` are decoded with ffmpeg and rendered to **ASCII art** with a
-  self-contained numpy 5x7 bitmap font (no external deps), one random image per
-  2-bar block.
+  self-contained numpy 5x7 bitmap font (no external deps). A shuffled playlist
+  guarantees **every image is used at least 3 times** across the track, then random
+  repeats fill the rest.
 - A GPU GLSL shader (vs-placebo) reads the ASCII (`HOOKED_tex`), the audio strip
   (64 bands + bass + kick + energy) and `frame` (time), and draws a **monochrome**
   Berlin overlay: hypnotic rings, audio spokes, grid, scanlines, kick glitch, grain.

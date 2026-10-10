@@ -23,6 +23,7 @@ Info: .venv\\Scripts\\vspipe.exe -i visualizer.vpy -
 import ctypes
 import glob
 import math
+import os
 import subprocess
 import wave
 
@@ -124,12 +125,18 @@ def plane_u16(frame, p):
 
 def decode_gray(path):
     """Decode an image to a GRID_H x GRID_W uint8 grayscale grid via ffmpeg."""
-    out = subprocess.run(
-        ["ffmpeg", "-v", "error", "-i", path,
-         "-vf", f"scale={GRID_W}:{GRID_H}:flags=area,format=gray",
-         "-f", "rawvideo", "-"],
-        capture_output=True)
-    return np.frombuffer(out.stdout, np.uint8)[:GRID_W * GRID_H].reshape(GRID_H, GRID_W)
+    try:
+        out = subprocess.run(
+            ["ffmpeg", "-nostdin", "-v", "error", "-i", path,
+             "-vf", f"scale={GRID_W}:{GRID_H}:flags=area,format=gray",
+             "-f", "rawvideo", "-"],
+            capture_output=True, timeout=30)
+        buf = np.frombuffer(out.stdout, np.uint8)
+        if buf.size < GRID_W * GRID_H:
+            return np.zeros((GRID_H, GRID_W), np.uint8)
+        return buf[:GRID_W * GRID_H].reshape(GRID_H, GRID_W).astype(np.uint8)
+    except Exception:
+        return np.zeros((GRID_H, GRID_W), np.uint8)
 
 
 def render_ascii(grid):
@@ -218,9 +225,21 @@ TOTAL_BARS = int(math.ceil(A["duration"] / BAR))
 # ---------------------------------------------------------------------------
 _files = sorted(glob.glob(f"{IMG_DIR}/*.jpg")) + sorted(glob.glob(f"{IMG_DIR}/*.png"))
 _grids = [decode_gray(p) for p in _files] if _files else []
+N_IMGS = len(_files)
+REUSE = 3                              # every image must appear at least this often
+if N_IMGS:
+    # size the image period so at least REUSE*N_IMGS slots fit in the duration
+    IMG_PERIOD = A["duration"] / (REUSE * N_IMGS)
 N_IMG_BLOCKS = int(math.ceil(A["duration"] / IMG_PERIOD)) + 1
 _rng = np.random.default_rng(20261010)
-_picks = _rng.integers(0, max(1, len(_files)), size=N_IMG_BLOCKS)
+if N_IMGS:
+    _playlist = list(range(N_IMGS)) * REUSE
+    _rng.shuffle(_playlist)
+    while len(_playlist) < N_IMG_BLOCKS:
+        _playlist.append(int(_rng.integers(0, N_IMGS)))
+    _picks = np.array(_playlist[:N_IMG_BLOCKS], dtype=int)
+else:
+    _picks = np.zeros(N_IMG_BLOCKS, dtype=int)
 _render_cache = {}
 
 
