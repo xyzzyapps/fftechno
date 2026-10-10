@@ -17,6 +17,8 @@ AUDIO = OUTPUT / "techno.wav"
 MIX_PRE = OUTPUT / "mix_pre.wav"
 IR = LOGS / "ir.wav"
 SONG = ROOT / "song.md"
+SOUNDS = ROOT / "sounds.md"
+TEMPLATES = ROOT / "templates"
 MASTER_VIDEO = OUTPUT / "techno_visualizer.mp4"
 PREVIEW_VIDEO = OUTPUT / "techno_visualizer_720p.mp4"
 

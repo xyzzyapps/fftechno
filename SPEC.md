@@ -441,7 +441,11 @@ Package entry points: `fftechno.cli:main` (console script) and `python -m fftech
 - **Sections**: `| bars | <stem> | ... |` where every column after `bars` is a stem
   and each cell is a gain; ranges are `start-end` in bars;
 - **Pan**: `| stem | mode | left | right |` with `mode` in {center, haas, stereo};
-- **Effects**: `| effect | value |` with keys from `DEFAULT_EFFECTS`.
+- **Patterns**: `| stem | pattern |` - one bar of 16 steps (`x` hit, `1`-`9`
+  velocity, `.` rest), applied as a sample-accurate `aeval` gate on the drum stems;
+- **Levels**: `| stem | level |` - fixed level for non-arranged stems (vox, beeps);
+- **Effects**: `| effect | value |` - global mix parameters (`reverb_*`,
+  `sidechain_*`, `stereo_width`, `bus_*`); all are required (no defaults).
 
 `sounds.md` - **Instruments**: `| name | type | parameters |` with `type` from
 `fftechno/synth.py` `GENERATORS` and `parameters` a comma-separated `key=value` list.
@@ -484,3 +488,27 @@ Note: section 7 (the old `filters/mix.txt` description) is superseded by section
 - **No vocals?** Install espeak-ng under `tools/` (see Setup).
 - **Can I use a different song length?** Yes - change `bars` (and the section rows).
 - **Noncommercial only?** Yes - PolyForm Noncommercial 1.0.0 (see `LICENSE`).
+
+---
+
+## 26. Templating synthesis (no hard-coded values)
+
+Synths and mix routing are fully markdown-driven; the Python holds no default
+values.
+
+- `templates/*.txt` - ffmpeg filtergraphs with `{{key}}` placeholders.
+- `sounds.md` - global scalars (`sr, dur, lp, osr, bar, step, gold, vbase,
+  vamt`) plus an **Instruments** table (`name | template | parameters`).
+  `fftechno/synth.py` substitutes the values into the template and writes
+  `filters/<name>.txt`; a missing placeholder raises.
+- `song.md` - scalars (`bpm, bars, fade_bars`) and the tables **Boosts,
+  Sections, Patterns, Pan, Levels, Effects**. `fftechno/arrangement.py` builds
+  the mix graph from these alone; the only fixed topology is the mix wiring (kick
+  keys the bass+growl low bus, everything sums, a high-passed send runs the
+  convolution reverb, then the bus compressor + stereo widener).
+- **Patterns** are applied as a sample-accurate `aeval` gate on the drum stems,
+  so the 16th-note grid of every drum is editable in markdown.
+- **Levels** gives the fixed level of non-arranged stems (vox, beeps).
+
+Section 21's generator-function description is superseded by this templating
+approach (`fftechno/synth.py` now only renders templates).

@@ -85,9 +85,10 @@ def master() -> None:
 
 
 def build() -> None:
-    """Full audio pipeline: IR + vocals + stems -> mix -> master."""
-    from . import vox  # imported here so audio-only use needs no espeak import cost
+    """Full audio pipeline: synth defs + IR + vocals + stems -> mix -> master."""
+    from . import synth, vox  # imported here so audio-only paths stay light
 
+    synth.generate()        # sounds.md -> filters/<name>.txt
     make_ir()
     vox.render()
     render_osc_stems()

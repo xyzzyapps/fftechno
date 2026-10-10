@@ -241,6 +241,37 @@ or `stereo` (uses the `left`/`right` gains).
 | bus_release         | 150   | bus compressor release (ms) |
 ```
 
+**6. Patterns** - the beats themselves. Each row is one bar of 16 steps (16th
+notes): `x` = hit, `1`-`9` = velocity, `.` = rest. These gate the drum stems
+sample-accurately, so this is where you reprogram the groove.
+
+```markdown
+| stem   | pattern          |
+|--------|------------------|
+| kick   | x...x...x...x... |
+| clap   | ....x.......x... |
+| hat    | xxxxxxxxxxxxxxxx |
+| ohat   | ..x...x...x...x. |
+| perc   | xx.x.xx.xx.x.xx. |
+| bongo  | ..x.x..x..x.x..x |
+| rim    | .x...x...x...x.. |
+| shaker | ..x...x...x...x. |
+```
+
+`fftechno/arrangement.py` gate the drum stems with a sample-accurate `aeval`
+multiplier, so the pattern fully defines *which* 16ths hit (the instruments run
+free on the 16th grid; the pattern selects).
+
+**7. Levels** - fixed level for stems that are not arranged per-section (the vocals
+and the beeps; their timing lives in their own graphs).
+
+```markdown
+| stem  | level |
+|-------|-------|
+| vox   | 1.0   |
+| beeps | 1.0   |
+```
+
 Times are in **bars** (1 bar = 4 beats at `bpm`). `fftechno/arrangement.py` turns
 the tables into per-stem `volume=...:eval=frame` automation, adds panning / the kick
 side-chain / the reverb bus, and writes the graph to `output/logs/mix.txt`.
@@ -256,6 +287,10 @@ side-chain / the reverb bus, and writes the graph to `output/logs/mix.txt`.
 **Bring the acid in later.** Set its intro cell to `0.00`.
 
 **Solo the bass.** Set every other stem to `0.00` in a row.
+
+**Change the groove.** Edit a drum row in **Patterns** - e.g. `x..x..x...x..x..`
+for a broken kick, or `x..x..x..x..x..x` for a shuffled hat. Any stem in the
+Patterns table is reprogrammed without touching any filter file.
 
 **Change the tempo.** Set `bpm: 145` - durations follow automatically; the number of
 bars (and so the length) is unchanged.
@@ -275,24 +310,27 @@ section cells are per-section.
 3. **Give it a column** in the `song.md` Sections table and set its gains.
 4. `python -m fftechno audio`.
 
-### `sounds.md` reference
+### `sounds.md` + `templates/` reference
 
-Types live in `fftechno/synth.py`; parameters are comma-separated `key=value` pairs:
+There are no built-in defaults: every value comes from `sounds.md`.
 
-| type | parameters |
-|------|------------|
-| `kick` | `amp, f0, sweep, rate, decay, click_freq, click_decay, click_amt, bpm` |
-| `noise` | `amp, decay, hp, lp, period` |
+- `templates/*.txt` are filtergraphs with `{{key}}` placeholders.
+- `sounds.md` global scalars (`sr`, `dur`, `lp`, `osr`, `bar`, `step`, `gold`,
+  `vbase`, `vamt`, ...) apply to every instrument; an instrument's own `parameters`
+  override or extend them.
+- `python -m fftechno synth` substitutes the values and writes `filters/<name>.txt`;
+  a missing placeholder fails loudly.
 
-Example - the basic 909 4-on-4 kick:
+Templates: `kick`, `clap`, `noise` (hat/ohat/shaker), `tom` (perc/bongo), `rim`.
 
 ```markdown
-| name    | type | parameters |
-|---------|------|------------|
-| kick909 | kick | amp=0.9, f0=50, sweep=180, rate=50, decay=8, click_freq=1500, click_decay=250, click_amt=0.25 |
+step: 0.107143
+
+| name | template | parameters |
+| kick | kick.txt | amp=0.95, f0=48, sweep=220, rate=55, decay=24, click_amt=0.4, click_f=1200, ... |
 ```
 
-New instrument *types* are one generator function plus a `GENERATORS` entry.
+The *beats* are not defined here - they come from the **Patterns** table in `song.md`.
 
 ### Command reference
 
@@ -320,6 +358,8 @@ fftechno/                 Python build tooling (stdlib only)
 filters/                  ffmpeg filter graphs (the actual synthesis)
   kick clap hat ohat perc shaker bongo rim bass growl acid beeps .txt
   vox.txt                 vocal placement graph
+templates/                {{key}} filter-graph templates (kick/clap/noise/tom/rim)
+sounds.md                 instrument definitions (template + parameters; no defaults)
 song.md                   the arrangement (edit this; mix.txt is generated)
 visualizer.vpy            VapourSynth + GLSL (ASCII art + B/W Berlin overlay)
 pyproject.toml            package metadata / console script

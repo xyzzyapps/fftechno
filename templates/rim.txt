@@ -1,0 +1,1 @@
+aevalsrc='{{amp}}*((random(0)*2-1)*{{n_amt}}+sin(2*PI*{{tone_f}}*mod(t,{{step}})))*exp(-{{decay}}*mod(t,{{step}}))*({{vbase}}+{{vamt}}*(0.5+0.5*sin(floor(mod(t,{{bar}})/{{step}})*{{gold}})))':s={{sr}}:d={{dur}}[src];[src]highpass=f={{hp}},lowpass=f={{lp}},aresample={{osr}}[out]

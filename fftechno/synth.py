@@ -1,90 +1,41 @@
-"""Markdown-driven instrument synthesis.
+"""Markdown-driven synthesis.
 
-Define instruments in ``sounds.md`` (``name`` | ``type`` | ``parameters``) and run
-``python -m fftechno synth``; each row becomes ``filters/<name>.txt`` - an ffmpeg
-filtergraph ending in ``[out]`` that the audio build can render like any other
-stem.
+``sounds.md`` defines instruments (``name | template | parameters``) and global
+scalars; ``templates/*.txt`` are ffmpeg filtergraphs with ``{{key}}`` placeholders.
+``python -m fftechno synth`` renders each instrument to ``filters/<name>.txt``.
 
-Add a new kind of sound by writing a generator function and registering it in
-``GENERATORS``. Parameters are ``key=value`` pairs in the third table column.
+There are no defaults: every ``{{key}}`` an instrument uses must be supplied by the
+globals or its own parameters, otherwise generation fails loudly.
 """
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Callable
 
 from . import config as C
 
-# Generated oscillators run at 192 kHz and are anti-alias filtered on downsampling.
-_SR = 192000
-_TAIL = "lowpass=f=19000,aresample=48000[out]"
+_PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
 
 
-def _params(cell: str) -> dict[str, float]:
+def _scalars(text: str) -> dict[str, str]:
+    """Global ``key: value`` lines (values are substituted verbatim)."""
+    return {m.group(1): m.group(2)
+            for m in re.finditer(r"^\s*([a-z_]+)\s*:\s*(\S+)\s*$", text, re.M)}
+
+
+def _params(cell: str) -> dict[str, str]:
     """Parse a ``key=value, key=value`` parameter cell."""
-    out: dict[str, float] = {}
+    out: dict[str, str] = {}
     for part in cell.split(","):
         if "=" in part:
             key, value = part.split("=", 1)
-            out[key.strip()] = float(value)
+            out[key.strip()] = value.strip()
     return out
 
 
-def _source(expr: str, effects: str = "") -> str:
-    """Wrap a sample expression plus effect chain into a filtergraph."""
-    return (f"aevalsrc='{expr}':s={_SR}:d={C.DURATION:g}[src];"
-            f"[src]{effects}{_TAIL}\n")
-
-
-def kick(p: dict[str, float]) -> str:
-    """A 909-style 4-on-the-floor kick.
-
-    Parameters: ``amp, f0, sweep, rate, decay, click_freq, click_decay,
-    click_amt`` and optional ``bpm`` (defaults to the song BPM).
-    """
-    amp = p.get("amp", 0.9)
-    f0 = p.get("f0", 50.0)
-    sweep = p.get("sweep", 180.0)
-    rate = p.get("rate", 50.0)
-    decay = p.get("decay", 8.0)
-    cf = p.get("click_freq", 1500.0)
-    cd = p.get("click_decay", 250.0)
-    ca = p.get("click_amt", 0.25)
-    beat = 60.0 / p.get("bpm", C.BPM)
-    tau = f"mod(t,{beat:.6f})"
-    expr = (
-        f"{amp:g}*(sin(2*PI*({f0:g}*{tau}+({sweep:g}/{rate:g})*(1-exp(-{rate:g}*{tau}))))"
-        f"*exp(-{decay:g}*{tau})"
-        f"+{ca:g}*sin(2*PI*{cf:g}*{tau})*exp(-{cd:g}*{tau}))"
-    )
-    return _source(expr)
-
-
-def noise(p: dict[str, float]) -> str:
-    """A filtered noise burst (hat / shaker / clap body).
-
-    Parameters: ``amp, decay, hp, lp, period`` (seconds between hits).
-    """
-    amp = p.get("amp", 0.35)
-    decay = p.get("decay", 80.0)
-    hp = p.get("hp", 7000.0)
-    lp = p.get("lp", 20000.0)
-    period = p.get("period", 0.107143)
-    tau = f"mod(t,{period:.6f})"
-    return _source(f"{amp:g}*(random(0)*2-1)*exp(-{decay:g}*{tau})",
-                   f"highpass=f={hp:g},lowpass=f={lp:g},")
-
-
-GENERATORS: dict[str, Callable[[dict[str, float]], str]] = {
-    "kick": kick,
-    "noise": noise,
-}
-
-
 def _rows(text: str) -> list[list[str]]:
-    """Return the rows of the first ``name | type | parameters`` table."""
+    """Rows of the first ``name | template | parameters`` table."""
     lines = text.splitlines()
     for i, line in enumerate(lines):
         if i + 1 >= len(lines) or not line.lstrip().startswith("|"):
@@ -92,7 +43,7 @@ def _rows(text: str) -> list[list[str]]:
         if not re.match(r"^\s*\|[\s:|.-]+\|\s*$", lines[i + 1]):
             continue
         header = [c.strip().lower() for c in line.strip().strip("|").split("|")]
-        if header[:3] != ["name", "type", "parameters"]:
+        if header[:3] != ["name", "template", "parameters"]:
             continue
         rows = []
         j = i + 2
@@ -103,14 +54,24 @@ def _rows(text: str) -> list[list[str]]:
     return []
 
 
+def _render(template: str, values: dict[str, str], name: str) -> str:
+    def repl(match: re.Match[str]) -> str:
+        key = match.group(1)
+        if key not in values:
+            raise SystemExit(f"sounds.md: instrument '{name}' needs value '{key}'")
+        return values[key]
+    return _PLACEHOLDER.sub(repl, template)
+
+
 def generate(sounds_path: Path | None = None) -> list[str]:
-    """Write ``filters/<name>.txt`` for every instrument in ``sounds.md``."""
-    path = sounds_path or (C.ROOT / "sounds.md")
+    """Render every instrument in ``sounds.md`` into ``filters/<name>.txt``."""
+    path = sounds_path or C.SOUNDS
+    text = path.read_text(encoding="utf-8")
+    globals_ = _scalars(text)
     written: list[str] = []
-    for name, kind, params in _rows(path.read_text(encoding="utf-8")):
-        gen = GENERATORS.get(kind)
-        if gen is None:
-            raise SystemExit(f"unknown instrument type '{kind}' (instrument '{name}')")
-        (C.FILTERS / f"{name}.txt").write_text(gen(_params(params)), encoding="utf-8")
+    for name, template, params in _rows(text):
+        values = {**globals_, **_params(params)}
+        body = _render((C.TEMPLATES / template).read_text(encoding="utf-8"), values, name)
+        (C.FILTERS / f"{name}.txt").write_text(body, encoding="utf-8")
         written.append(name)
     return written
