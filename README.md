@@ -143,7 +143,7 @@ The arrangement is **user-programmable** in `song.md` - a plain markdown file.
 `python -m fftechno audio` regenerates the mix graph from it, so there is no hand
 -edited `mix.txt` to maintain.
 
-`song.md` has three parts:
+`song.md` has five parts:
 
 1. **Scalars** - `bpm`, `bars`, `fade_bars` (the final section fades to silence
    over this many bars).
@@ -151,6 +151,11 @@ The arrangement is **user-programmable** in `song.md` - a plain markdown file.
    balance the kit, e.g. `kick: 2.55`).
 3. **Sections** table - one row per section (`bars` range) and one column per
    arranged stem; each cell is that stem's gain in that section (`0.00` mutes it).
+4. **Pan** table - per-stem stereo placement (`center`, `haas`, or `stereo` with
+   `left`/`right` gains).
+5. **Effects** table - global mix parameters: `reverb_send`, `reverb_hpf`,
+   `reverb_wet`, `sidechain_threshold/ratio/attack/release`, `stereo_width`,
+   `bus_threshold/ratio/attack/release`. Any row can be omitted to use the default.
 
 ```
 | bars    | kick | clap | hat  | ohat | ... | acid |
@@ -162,6 +167,22 @@ The arrangement is **user-programmable** in `song.md` - a plain markdown file.
 Times are in **bars** (1 bar = 4 beats at `bpm`). The Python turns the table into
 per-stem `volume=...:eval=frame` automation (`fftechno/arrangement.py`), adds the
 panning / kick side-chain / reverb bus, and writes `output/logs/mix.txt`.
+
+## Defining instruments (`sounds.md`)
+
+The synths themselves are markdown too. `sounds.md` lists `name | type | parameters`
+rows; `python -m fftechno synth` writes `filters/<name>.txt` from generators in
+`fftechno/synth.py`. Example - a basic 909 4-on-4 kick:
+
+```markdown
+| name    | type | parameters |
+|---------|------|------------|
+| kick909 | kick | amp=0.9, f0=50, sweep=180, rate=50, decay=8, click_freq=1500, click_decay=250, click_amt=0.25 |
+```
+
+This writes the `aevalsrc` filtergraph for that kick (pitch sweeping 230 -> 50 Hz
+with a click, anti-aliased). New instrument types are a generator function plus a
+`GENERATORS` entry.
 
 ## Layout
 

@@ -39,3 +39,43 @@ The **final** section fades to silence over `fade_bars`.
 | 72-80   | 0.00 | 0.00 | 0.40 | 0.25 | 0.55 | 0.35   | 0.45  | 0.35 | 0.85 | 1.30  | 1.05 |
 | 80-133  | 1.00 | 0.75 | 0.55 | 0.55 | 0.80 | 0.55   | 0.70  | 0.55 | 0.95 | 1.00  | 1.10 |
 | 133-140 | 1.00 | 0.75 | 0.55 | 0.55 | 0.80 | 0.55   | 0.70  | 0.55 | 0.95 | 1.00  | 1.10 |
+
+## Pan
+
+Per-stem stereo placement. `mode` is `center`, `haas` (centre + Haas
+widening), or `stereo` (uses `left`/`right`).
+
+| stem   | mode   | left | right |
+|--------|--------|------|-------|
+| kick   | center |      |       |
+| clap   | center |      |       |
+| hat    | stereo | 0.62 | 0.38  |
+| ohat   | stereo | 0.38 | 0.62  |
+| perc   | haas   |      |       |
+| shaker | stereo | 0.35 | 0.65  |
+| bongo  | stereo | 0.42 | 0.58  |
+| rim    | stereo | 0.62 | 0.38  |
+| bass   | center |      |       |
+| growl  | stereo | 0.58 | 0.42  |
+| acid   | stereo | 0.42 | 0.58  |
+| vox    | center |      |       |
+| beeps  | center |      |       |
+
+## Effects
+
+Global mix effect parameters (all optional; defaults used if a row is omitted).
+
+| effect              | value |
+|---------------------|-------|
+| reverb_send         | 0.7   |
+| reverb_hpf          | 300   |
+| reverb_wet          | 1.0   |
+| sidechain_threshold | 0.03  |
+| sidechain_ratio     | 12    |
+| sidechain_attack    | 5     |
+| sidechain_release   | 120   |
+| stereo_width        | 1.3   |
+| bus_threshold       | 0.1   |
+| bus_ratio           | 3     |
+| bus_attack          | 10    |
+| bus_release         | 150   |

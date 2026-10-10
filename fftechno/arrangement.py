@@ -1,14 +1,14 @@
 """Arrangement: parse ``song.md`` and build the mix filter graph.
 
-Per-stem section gains live in ``song.md`` as a markdown table; this module turns
-them into ffmpeg ``volume=...:eval=frame`` automation and assembles the full mix
-graph (panning, kick side-chain, reverb bus).
+``song.md`` is the single control surface: per-stem section gains, per-stem pan,
+and global effect parameters (side-chain, reverb bus, stereo width, bus comp).
+This module turns it into an ffmpeg filtergraph.
 """
 
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import config as C
@@ -20,13 +20,23 @@ AUTO_STEMS = ("kick", "clap", "hat", "ohat", "perc", "shaker",
 # Stems with a fixed level (their content is placed by their own graphs).
 CONST_STEMS: dict[str, float] = {"vox": 1.0, "beeps": 1.0}
 
-# Stereo placement: "center", "center_haas", or (left, right) gains.
-PAN: dict[str, object] = {
-    "kick": "center", "clap": "center", "bass": "center",
-    "hat": (0.62, 0.38), "ohat": (0.38, 0.62),
-    "acid": (0.42, 0.58), "shaker": (0.35, 0.65),
-    "growl": (0.58, 0.42), "bongo": (0.42, 0.58), "rim": (0.62, 0.38),
-    "perc": "center_haas", "vox": "center", "beeps": "center",
+# Default stereo placement per stem: ("center" | "haas" | ("stereo", left, right)).
+DEFAULT_PAN: dict[str, tuple] = {
+    "kick": ("center",), "clap": ("center",), "bass": ("center",),
+    "hat": ("stereo", 0.62, 0.38), "ohat": ("stereo", 0.38, 0.62),
+    "acid": ("stereo", 0.42, 0.58), "shaker": ("stereo", 0.35, 0.65),
+    "growl": ("stereo", 0.58, 0.42), "bongo": ("stereo", 0.42, 0.58),
+    "rim": ("stereo", 0.62, 0.38), "perc": ("haas",),
+    "vox": ("center",), "beeps": ("center",),
+}
+
+# Default global effect parameters (overridable from the Effects table).
+DEFAULT_EFFECTS: dict[str, float] = {
+    "reverb_send": 0.7, "reverb_hpf": 300, "reverb_wet": 1.0,
+    "sidechain_threshold": 0.03, "sidechain_ratio": 12,
+    "sidechain_attack": 5, "sidechain_release": 120,
+    "stereo_width": 1.3,
+    "bus_threshold": 0.1, "bus_ratio": 3, "bus_attack": 10, "bus_release": 150,
 }
 
 
@@ -37,8 +47,10 @@ class Song:
     bpm: float
     bars: int
     fade_bars: float
-    boosts: dict[str, float]
-    sections: list[tuple[int, int, dict[str, float]]]   # (bar_start, bar_end, gains)
+    boosts: dict[str, float] = field(default_factory=dict)
+    sections: list[tuple[int, int, dict[str, float]]] = field(default_factory=list)
+    pan: dict[str, tuple] = field(default_factory=dict)
+    effects: dict[str, float] = field(default_factory=dict)
 
     @property
     def bar_seconds(self) -> float:
@@ -54,7 +66,7 @@ def _tables(text: str) -> list[tuple[list[str], list[list[str]]]]:
         sep = re.match(r"^\s*\|[\s:|.-]+\|\s*$", lines[i + 1]) if i + 1 < len(lines) else None
         if lines[i].lstrip().startswith("|") and sep:
             header = [c.strip() for c in lines[i].strip().strip("|").split("|")]
-            rows = []
+            rows: list[list[str]] = []
             j = i + 2
             while j < len(lines) and lines[j].lstrip().startswith("|"):
                 rows.append([c.strip() for c in lines[j].strip().strip("|").split("|")])
@@ -67,28 +79,36 @@ def _tables(text: str) -> list[tuple[list[str], list[list[str]]]]:
 
 
 def parse(path: Path) -> Song:
-    """Parse a ``song.md`` arrangement file."""
+    """Parse the ``song.md`` control surface."""
     text = path.read_text(encoding="utf-8")
     scalars = dict(re.findall(r"^\s*([a-z_]+)\s*:\s*([0-9.]+)\s*$", text, re.M))
     bpm = float(scalars.get("bpm", C.BPM))
     bars = int(float(scalars["bars"])) if "bars" in scalars else 140
     fade_bars = float(scalars.get("fade_bars", 0.0))
 
-    boosts: dict[str, float] = {}
-    sections: list[tuple[int, int, dict[str, float]]] = []
+    song = Song(bpm, bars, fade_bars)
     for header, rows in _tables(text):
         head = [h.lower() for h in header]
         if head[:2] == ["stem", "boost"]:
-            boosts = {row[0]: float(row[1]) for row in rows}
+            song.boosts = {row[0]: float(row[1]) for row in rows}
         elif head[0] == "bars":
             cols = header[1:]
             for row in rows:
                 lo, hi = (int(x) for x in re.split(r"\s*-\s*", row[0]))
                 gains = {cols[k]: float(row[k + 1]) for k in range(len(cols))}
-                sections.append((lo, hi, gains))
-    if not sections:
+                song.sections.append((lo, hi, gains))
+        elif head[:2] == ["stem", "mode"]:
+            for row in rows:
+                mode = row[1].strip().lower()
+                if mode == "stereo":
+                    song.pan[row[0]] = ("stereo", float(row[2]), float(row[3]))
+                else:
+                    song.pan[row[0]] = (mode,)
+        elif head[0] == "effect":
+            song.effects = {row[0]: float(row[1]) for row in rows}
+    if not song.sections:
         raise ValueError(f"no sections table found in {path}")
-    return Song(bpm, bars, fade_bars, boosts, sections)
+    return song
 
 
 def _expr(gains: list[float], starts: list[float], fade: float) -> str:
@@ -98,14 +118,14 @@ def _expr(gains: list[float], starts: list[float], fade: float) -> str:
     return "".join(parts) + tail + ")" * len(parts)
 
 
-def _pan(stem: str, src: str) -> str:
-    placement = PAN.get(stem, "center")
-    if placement == "center":
+def _pan(stem: str, src: str, pan: dict[str, tuple]) -> str:
+    placement = pan.get(stem, DEFAULT_PAN.get(stem, ("center",)))
+    if placement[0] == "center":
         return f"[{src}]pan=stereo|c0=c0|c1=c0[{stem}]"
-    if placement == "center_haas":
+    if placement[0] == "haas":
         return f"[{src}]pan=stereo|c0=c0|c1=c0,haas[{stem}]"
-    left, right = placement            # type: ignore[misc]
-    return f"[{src}]pan=stereo|c0={left}*c0|c1={right}*c0[{stem}]"
+    _, left, right = placement
+    return f"[{src}]pan=stereo|c0={left:g}*c0|c1={right:g}*c0[{stem}]"
 
 
 def build_graph(song: Song) -> str:
@@ -113,6 +133,7 @@ def build_graph(song: Song) -> str:
     bar = song.bar_seconds
     index = {name: i for i, name in enumerate(C.MIX_INPUTS)}
     ir_index = len(C.MIX_INPUTS)
+    fx = {**DEFAULT_EFFECTS, **song.effects}
 
     lines: list[str] = []
     starts = [lo * bar for lo, _hi, _ in song.sections]
@@ -122,7 +143,7 @@ def build_graph(song: Song) -> str:
         boost = song.boosts.get(stem, 1.0)
         expr = _expr(gains, starts, song.fade_bars * bar)
         lines.append(f"[{index[stem]}]volume=volume='{boost:g}*{expr}':eval=frame[{stem}v]")
-        lines.append(_pan(stem, f"{stem}v"))
+        lines.append(_pan(stem, f"{stem}v", song.pan))
 
     for stem, level in CONST_STEMS.items():
         lines.append(f"[{index[stem]}]volume={level:g},pan=stereo|c0=0.5*c0|c1=0.5*c0[{stem}]")
@@ -130,13 +151,16 @@ def build_graph(song: Song) -> str:
     lines += [
         "[kick]asplit=2[kickm][key]",
         "[bass][growl]amix=inputs=2:normalize=0[low]",
-        "[low][key]sidechaincompress=threshold=0.03:ratio=12:attack=5:release=120:makeup=1[lowd]",
+        f"[low][key]sidechaincompress=threshold={fx['sidechain_threshold']:g}"
+        f":ratio={fx['sidechain_ratio']:g}:attack={fx['sidechain_attack']:g}"
+        f":release={fx['sidechain_release']:g}:makeup=1[lowd]",
         "[lowd][clap][hat][ohat][perc][kickm][acid][shaker][vox][bongo][rim][beeps]"
         "amix=inputs=12:normalize=0[sum]",
         "[sum]asplit=2[sm][sr]",
-        "[sr]highpass=f=300,volume=0.7[srh]",
-        f"[srh][{ir_index}]afir=dry=0:wet=1:gtype=peak[rvb]",
-        "[sm][rvb]amix=inputs=2:normalize=0,extrastereo=m=1.3,"
-        "acompressor=threshold=0.1:ratio=3:attack=10:release=150[out]",
+        f"[sr]highpass=f={fx['reverb_hpf']:g},volume={fx['reverb_send']:g}[srh]",
+        f"[srh][{ir_index}]afir=dry=0:wet={fx['reverb_wet']:g}:gtype=peak[rvb]",
+        f"[sm][rvb]amix=inputs=2:normalize=0,extrastereo=m={fx['stereo_width']:g},"
+        f"acompressor=threshold={fx['bus_threshold']:g}:ratio={fx['bus_ratio']:g}"
+        f":attack={fx['bus_attack']:g}:release={fx['bus_release']:g}[out]",
     ]
     return ";\n".join(lines) + "\n"

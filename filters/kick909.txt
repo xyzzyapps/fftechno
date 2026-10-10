@@ -1,0 +1,1 @@
+aevalsrc='0.9*(sin(2*PI*(50*mod(t,0.428571)+(180/50)*(1-exp(-50*mod(t,0.428571)))))*exp(-8*mod(t,0.428571))+0.25*sin(2*PI*1500*mod(t,0.428571))*exp(-250*mod(t,0.428571)))':s=192000:d=240[src];[src]lowpass=f=19000,aresample=48000[out]

@@ -38,3 +38,5 @@ bass, growl, acid, beeps (+ espeak-ng female vox).
   sample-free).
 
 - [x] programmable arrangement via song.md (fftechno/arrangement.py; filters/mix.txt removed)
+
+- [x] markdown instrument definitions (sounds.md + fftechno/synth.py; kick/noise generators)

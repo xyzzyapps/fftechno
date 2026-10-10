@@ -397,3 +397,23 @@ The arranged stems are `kick clap hat ohat perc shaker bongo rim bass growl
 acid`; `vox` and `beeps` have fixed levels (their placement is in
 `filters/vox.txt` / `filters/beeps.txt`). Editing `song.md` and running
 `python -m fftechno audio` is all that is needed to rearrange the track.
+
+---
+
+## 21. Markdown-driven instruments (sounds.md)
+
+sounds.md lists instruments as a `name | type | parameters` table;
+`python -m fftechno synth` writes `filters/<name>.txt` from generator
+functions in `fftechno/synth.py` (registered types: `kick`, `noise`).
+Parameters are free-form `key=value` pairs.
+
+Example (a basic 909 4-on-4 kick)::
+
+    | kick909 | kick | amp=0.9, f0=50, sweep=180, rate=50, decay=8, click_freq=1500, click_decay=250, click_amt=0.25 |
+
+Generated graph (verified): a `aevalsrc` whose frequency sweeps 230->50 Hz and
+whose amplitude decays, plus a click, anti-aliased (192 kHz -> lowpass -> 48 kHz).
+
+This complements `song.md` (arrangement + mix effects): `sounds.md` defines the
+synths, `song.md` the arrangement. The kit's existing `filters/*.txt` remain the
+hand-authored versions unless a generated instrument reuses their name.
