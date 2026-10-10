@@ -8,6 +8,10 @@ and no plugins. You shape it by editing two plain text files.
 
 If you can edit a spreadsheet, you can remix this track.
 
+**Watch it on YouTube:** [Xyzzy - Speak to me // Slopcore hardgroove](https://www.youtube.com/watch?v=spD_3V72k6Y)
+
+[![Xyzzy - Speak to me // Slopcore hardgroove - click to watch on YouTube](https://i.ytimg.com/vi/spD_3V72k6Y/maxresdefault.jpg)](https://www.youtube.com/watch?v=spD_3V72k6Y)
+
 ---
 
 ## What you get
