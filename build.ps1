@@ -14,7 +14,7 @@ if (-not (Get-Command ffmpeg -ErrorAction SilentlyContinue)) {
     throw "ffmpeg not found on PATH."
 }
 
-$stems = @('kick','clap','hat','bass','growl')
+$stems = @('kick','clap','hat','ohat','perc','bass','growl')
 foreach ($s in $stems) {
     Write-Host "Rendering stem: $s"
     ffmpeg -hide_banner -v error -filter_complex_script "filters/$s.txt" `
@@ -25,6 +25,7 @@ foreach ($s in $stems) {
 Write-Host "Mixing stems -> output/mix_pre.wav"
 ffmpeg -hide_banner -v error `
     -i output/stems/kick.wav -i output/stems/clap.wav -i output/stems/hat.wav `
+    -i output/stems/ohat.wav -i output/stems/perc.wav `
     -i output/stems/bass.wav -i output/stems/growl.wav `
     -filter_complex_script filters/mix.txt -map "[out]" -c:a pcm_f32le output/mix_pre.wav -y
 if ($LASTEXITCODE -ne 0) { throw "mix failed (exit $LASTEXITCODE)" }

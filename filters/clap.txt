@@ -1,1 +1,1 @@
-aevalsrc='0.5*((random(0)*2-1)*exp(-18*mod(t,0.461538))+0.5*sin(2*PI*180*mod(t,0.461538))*exp(-25*mod(t,0.461538)))*(gt(mod(floor(mod(t,1.846154)/0.461538),2),0.5))':s=48000:d=14.769[src];[src]highpass=f=900,lowpass=f=9000[out]
+aevalsrc='0.55*((random(0)*2-1)*exp(-20*mod(t,0.428571))+0.5*sin(2*PI*200*mod(t,0.428571))*exp(-28*mod(t,0.428571)))*(gt(mod(floor(mod(t,1.714286)/0.428571),2),0.5))':s=48000:d=13.714286[src];[src]highpass=f=900,lowpass=f=9000[out]
