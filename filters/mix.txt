@@ -24,8 +24,9 @@
 [bnv]pan=stereo|c0=0.42*c0|c1=0.58*c0[bongo];
 [11]volume=volume='if(lt(t,13.714286),0.0,if(lt(t,54.857143),0.5,if(lt(t,68.571429),0.35,if(lt(t,123.428571),0.5,if(lt(t,137.142857),0.35,if(lt(t,168.0),0.55,0.55*max(0,1-(t-168.0)/12.0)))))))':eval=frame[rv];
 [rv]pan=stereo|c0=0.62*c0|c1=0.38*c0[rim];
-[lowd][clap][hat][ohat][perc][kickm][acid][shaker][vox][bongo][rim]amix=inputs=11:normalize=0[sum];
+[12]volume=1.0,pan=stereo|c0=0.5*c0|c1=0.5*c0[beeps];
+[lowd][clap][hat][ohat][perc][kickm][acid][shaker][vox][bongo][rim][beeps]amix=inputs=12:normalize=0[sum];
 [sum]asplit=2[sm][sr];
 [sr]highpass=f=300,volume=0.7[srh];
-[srh][12]afir=dry=0:wet=1:gtype=peak[rvb];
+[srh][13]afir=dry=0:wet=1:gtype=peak[rvb];
 [sm][rvb]amix=inputs=2:normalize=0,extrastereo=m=1.3,acompressor=threshold=0.1:ratio=3:attack=10:release=150[out]

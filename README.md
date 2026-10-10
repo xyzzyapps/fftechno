@@ -47,7 +47,8 @@ converts it to ASCII art, and draws the B/W overlay.
 ## Layout
 
 ```
-filters/kick clap hat ohat perc shaker bongo rim bass growl acid .txt  expression stems
+filters/kick clap hat ohat perc shaker bongo rim bass growl acid beeps .txt  expression stems
+filters/vox.txt     espeak vocal placement graph
 filters/mix.txt     10 inputs + section automation -> sidechain -> bus
 filters/master.txt  two-pass linear loudnorm + limiter
 make_vox.ps1        espeak-ng vocal -> output/stems/vox.wav
@@ -70,8 +71,12 @@ output/             techno.wav, techno_visualizer*.mp4, stems/, logs/
   for a real moving "knob" sweep, plus resonant EQ + overdrive.
 - **Granular robotic speech.** FM carrier x grain train x per-slot syllable window,
   per-grain pitch contour, ring mod, formant EQ.
-- **Vocal.** espeak-ng "speak to me" pitched down, bit-crushed, reverbed, placed at
-  section hits.
+- **Vocals.** Female espeak-ng phrases ("speak to me", "come on", "feel it",
+  "hard groove", "let go", "trust me", "speak with me", "lock in", "take me
+  higher", "hands up"), pitched, reverbed, placed at section hits - plus a
+  synthesized Win-startup-style **beep bop arpeggio** (`filters/beeps.txt`).
+- **303 filter.** A real resonant **24 dB/oct low-pass** (two cascaded `lowpass`
+  with `width_type=q`) on top of the bright/dark sweep.
 - **Stereo depth.** Per-stem panning + Haas + `extrastereo` (mid ~4 dB above side).
 - **Glue.** Kick side-chains the bass+voice bus; master normalised to -14 LUFS.
 - **Quality pass (no samples).** Oscillators are generated at **192 kHz** and

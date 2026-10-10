@@ -120,8 +120,7 @@ ring mod `R=0.6+0.4*sin(2*PI*173*t)`; `voice=0.85*W*G2*carrier*R*G`.
 Filters: `equalizer` 380/1100/2600, `acrusher=bits=7:mix=0.5:mode=log`,
 `asoftclip=type=tanh:threshold=0.7, lowpass=7000`.
 
-### 6.9 303 acid - `filters/acid.txt` (knob twisting)
-`osc = 0.7*AMP(K)*exp(-5*D)*(mod(ph,1)*2-1)`, `ph = F(K)*(D+(BEND(K)/28)*(1-exp(-28*D)))+0.03*sin(2*PI*5.5*t)`
+### 6.9 303 acid - `filters/acid.txt` (knob twisting)`osc = 0.7*AMP(K)*exp(-5*D)*(mod(ph,1)*2-1)`, `ph = F(K)*(D+(BEND(K)/28)*(1-exp(-28*D)))+0.03*sin(2*PI*5.5*t)`
 (vibrato). `F(K)` (Hz): 110,110,220,110,130.81,110,164.81,196,110,110,220,110,174.61,130.81,146.83,110.
 `AMP(K)`: accents 1.0 {0,6,8,14}, rests 0 {3,11}, else 0.75. `BEND(K)`: 0.35 {2,7,10,15} else 0.05.
 **Filter sweep (the "knob")** is done as a time-automated crossfade of two branches:
@@ -316,3 +315,21 @@ Still not Ableton: there is no true per-voice resonant, automatable filter (the 
 sweep is a bright/dark crossfade), no real swing/humanization beyond velocity, and
 the synths are near-single-voice. Closing those fully needs a real synth engine
 (still "no samples", since soft synths synthesize rather than play back audio).
+
+---
+
+## 17. Additions (vocals, beeps, resonant 303 filter)
+
+- **Real resonant 24 dB/oct 303 filter.** ffmpeg's lowpass is a 2-pole biquad
+  (12 dB/oct) but exposes a Q control (width_type=q) and a runtime-able
+  frequency. Two cascaded lowpass=f=1600:width_type=q:width=5 in ilters/acid.txt
+  give a genuine resonant 24 dB/oct low-pass, on top of the bright/dark sweep.
+  (Cutoff can be automated further via sendcmd/zmq, since frequency carries the
+  runtime flag.)
+- **Beeps.** ilters/beeps.txt synthesizes a Win-startup-style bell arpeggio
+  (C5 E5 G5 C6 E6, two partials incl. an inharmonic 2.76x, decaying) at 192 kHz,
+  placed at 0.5 s / 68 s / 137 s with reverb.
+- **Vocals.** make_vox.ps1 + ilters/vox.txt render 10 female espeak-ng phrases
+  (speak to me, come on, feel it, hard groove, let go, trust me, speak with me,
+  lock in, take me higher, hands up), each setrate=23500 (moderate pitch),
+  reverb, and placed twice across the track (20 occurrences) via delay + mix.
