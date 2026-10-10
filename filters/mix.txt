@@ -1,0 +1,9 @@
+[3]volume=0.9[bass];
+[4]volume=0.8[growl];
+[bass][growl]amix=inputs=2:normalize=0[low];
+[0]asplit=2[kick][key];
+[low][key]sidechaincompress=threshold=0.05:ratio=8:attack=5:release=120:makeup=1[lowd];
+[1]volume=0.7[clap];
+[2]volume=0.6[hat];
+[lowd][clap][hat][kick]amix=inputs=4:normalize=0[sum];
+[sum]aformat=channel_layouts=stereo,acompressor=threshold=0.1:ratio=3:attack=10:release=150[out]

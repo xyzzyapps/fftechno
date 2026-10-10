@@ -1,0 +1,1 @@
+[0]loudnorm=I=-14:TP=-1.0:LRA=11:measured_I=-19.80:measured_TP=-4.93:measured_LRA=0.10:measured_thresh=-29.80:offset=0.01:linear=true:print_format=summary,aresample=48000,aformat=sample_fmts=s16:channel_layouts=stereo[out]
