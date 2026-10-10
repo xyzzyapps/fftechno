@@ -36,3 +36,5 @@ bass, growl, acid, beeps (+ espeak-ng female vox).
 - Remaining gap vs a DAW: ffmpeg IIR filters can't be automated per sample; no true
   swing; near-single-voice synths. Closing that needs a real synth engine (still
   sample-free).
+
+- [x] programmable arrangement via song.md (fftechno/arrangement.py; filters/mix.txt removed)

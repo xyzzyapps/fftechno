@@ -18,9 +18,13 @@ def main(argv: list[str] | None = None) -> None:
     vid = sub.add_parser("video", help="render + mux the ASCII video")
     vid.add_argument("--boost", type=float, default=1.0,
                      help="final audio gain (e.g. 2.0); 1.0 disables")
+    vid.add_argument("--static", action="store_true",
+                     help="render a single frozen frame (skip animation)")
 
     both = sub.add_parser("all", help="audio, then video")
     both.add_argument("--boost", type=float, default=1.0)
+    both.add_argument("--static", action="store_true",
+                      help="render a single frozen frame (skip animation)")
 
     lvl = sub.add_parser("boost", help="re-level the existing MP4s")
     lvl.add_argument("factor", type=float, nargs="?", default=2.0,
@@ -30,9 +34,9 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "audio":
         audio.build()
     elif args.command == "video":
-        video.build(boost=args.boost)
+        video.build(boost=args.boost, static=args.static)
     elif args.command == "all":
         audio.build()
-        video.build(boost=args.boost)
+        video.build(boost=args.boost, static=args.static)
     elif args.command == "boost":
         video.re_level(args.factor)

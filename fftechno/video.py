@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -9,17 +10,22 @@ from . import config as C
 from .proc import ffmpeg
 
 
-def _render_and_mux() -> None:
-    """Run vspipe -> ffmpeg (H.264 + AAC) into the master MP4."""
+def _render_and_mux(*, static: bool = False) -> None:
+    """Run vspipe -> ffmpeg (H.264 + AAC) into the master MP4.
+
+    ``static=True`` tells the visualizer to emit a single frozen frame (no
+    animation) via the ``FFTECHNO_STATIC`` environment variable.
+    """
     if not C.VSPIPE.exists():
         raise SystemExit(f"vspipe not found at {C.VSPIPE} (create the venv first)")
 
+    env = dict(os.environ, FFTECHNO_STATIC="1" if static else "0")
     C.OUTPUT.mkdir(parents=True, exist_ok=True)
     with open(C.LOGS / "vspipe.log", "wb") as vlog, \
             open(C.LOGS / "ffmpeg_video.log", "wb") as flog:
         vsp = subprocess.Popen(
             [str(C.VSPIPE), "-c", "y4m", str(C.VISUALIZER), "-"],
-            stdout=subprocess.PIPE, stderr=vlog)
+            stdout=subprocess.PIPE, stderr=vlog, env=env)
         enc = subprocess.Popen(
             ["ffmpeg", "-hide_banner", "-y", "-f", "yuv4mpegpipe", "-i", "-",
              "-i", str(C.AUDIO), "-c:v", "libx264", "-preset", "slow", "-crf", "20",
@@ -57,9 +63,12 @@ def re_level(factor: float, ceiling: float = 0.70) -> None:
         Path(tmp).replace(target)
 
 
-def build(*, boost: float = 1.0) -> None:
-    """Render the video, make the preview, and optionally re-level to *boost*."""
-    _render_and_mux()
+def build(*, boost: float = 1.0, static: bool = False) -> None:
+    """Render the video, make the preview, and optionally re-level to *boost*.
+
+    ``static=True`` renders a single frozen frame for the whole duration.
+    """
+    _render_and_mux(static=static)
     _preview()
     if boost and boost != 1.0:
         re_level(boost)

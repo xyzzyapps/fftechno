@@ -12,6 +12,7 @@ import re
 import subprocess
 from pathlib import Path
 
+from . import arrangement
 from . import config as C
 from .proc import ffmpeg
 
@@ -41,8 +42,16 @@ def _mix_inputs() -> list[str]:
 
 
 def mix() -> None:
-    """Sum the stems through filters/mix.txt (sections, sidechain, reverb bus)."""
-    ffmpeg(["-y", *_mix_inputs(), "-filter_complex_script", C.FILTERS / "mix.txt",
+    """Mix the stems using the arrangement parsed from ``song.md``.
+
+    The per-stem section automation (plus panning, kick side-chain and reverb
+    bus) is generated into ``output/logs/mix.txt`` and applied as a filtergraph.
+    """
+    graph = arrangement.build_graph(arrangement.parse(C.SONG))
+    C.LOGS.mkdir(parents=True, exist_ok=True)
+    script = C.LOGS / "mix.txt"
+    script.write_text(graph, encoding="utf-8")
+    ffmpeg(["-y", *_mix_inputs(), "-filter_complex_script", script,
             "-map", "[out]", "-c:a", "pcm_f32le", C.MIX_PRE])
 
 

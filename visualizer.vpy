@@ -22,6 +22,7 @@ Info: .venv\\\\Scripts\\\\vspipe.exe -i visualizer.vpy -
 import ctypes
 import glob
 import math
+import os
 import subprocess
 import wave
 
@@ -35,6 +36,9 @@ core = vs.core
 # ---------------------------------------------------------------------------
 AUDIO_PATH = "output/techno.wav"
 IMG_DIR = "ascii"
+# When set (vspipe sees FFTECHNO_STATIC=1) the output is a single frozen frame
+# repeated for the whole duration -> no animation.
+STATIC = os.environ.get("FFTECHNO_STATIC") == "1"
 W, H, FPS = 1920, 1080, 30
 NBARS = 64
 CELL = 24                           # strip pixels per value
@@ -251,11 +255,14 @@ def ascii_for_block(blk):
     return _render_cache[blk]
 
 
+_FILL = NF // 2                     # representative frame used when STATIC
+
+
 def build_data(n, f):
     fc = f.copy()
     luma = plane_u16(fc, 0)
-    i = min(n, NF - 1)
-    blk = min(int((n / FPS) / IMG_PERIOD), N_IMG_BLOCKS - 1)
+    i = _FILL if STATIC else min(n, NF - 1)
+    blk = min(int((i / FPS) / IMG_PERIOD), N_IMG_BLOCKS - 1)
     luma[:] = ascii_for_block(blk).astype(np.uint16) * 257
     vals = np.concatenate([A["level"][i], [A["bass"][i], A["kick"][i],
                                           A["energy"][i]]]).astype(np.float32)
@@ -266,7 +273,7 @@ def build_data(n, f):
 
 
 blank = core.std.BlankClip(width=W, height=H, format=vs.YUV444P16,
-                           length=NF, fpsnum=FPS, fpsden=1)
+                           length=(1 if STATIC else NF), fpsnum=FPS, fpsden=1)
 data = core.std.ModifyFrame(blank, blank, build_data)
 
 shaded = core.placebo.Shader(data, shader_s=SHADER, width=W, height=H,
@@ -275,4 +282,6 @@ shaded = core.placebo.Shader(data, shader_s=SHADER, width=W, height=H,
 clip = core.resize.Bicubic(shaded, format=vs.YUV420P8, matrix_in_s="470bg",
                            matrix_s="470bg", range_in_s="limited",
                            range_s="limited")
+if STATIC:
+    clip = core.std.Loop(clip, NF)      # hold the single frame for the full length
 clip.set_output()

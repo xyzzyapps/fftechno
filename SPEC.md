@@ -376,3 +376,24 @@ Changes vs the previous PowerShell build:
   `fftechno/audio.py` from the loudnorm measurements (no stale values).
 - `visualizer.vpy` de-cluttered (unused import, unused constant, updated docs).
 - `pyproject.toml` added (metadata + `fftechno` console script).
+
+---
+
+## 20. Programmable arrangement (song.md)
+
+The arrangement is no longer a hand-edited filter graph. It lives in `song.md`:
+
+- scalar keys `bpm`, `bars`, `fade_bars`;
+- a **Boosts** table (per-stem gain multiplier);
+- a **Sections** table (rows = bar ranges, columns = arranged stems, cells = gain).
+
+`fftechno/arrangement.py` parses it and builds the mix filtergraph: per-stem
+`volume=volume='<boost>*<nested if(lt(t,..))>':eval=frame` automation (the final
+section fades over `fade_bars`), plus the static routing (panning, kick
+side-chain, reverb bus). `fftechno/audio.py` writes it to `output/logs/mix.txt`
+and mixes. `filters/mix.txt` was deleted.
+
+The arranged stems are `kick clap hat ohat perc shaker bongo rim bass growl
+acid`; `vox` and `beeps` have fixed levels (their placement is in
+`filters/vox.txt` / `filters/beeps.txt`). Editing `song.md` and running
+`python -m fftechno audio` is all that is needed to rearrange the track.
