@@ -1,7 +1,8 @@
 .venv/
+tools/
+ascii/
 output/mix_pre.wav
 output/logs/
 output/*.y4m
 output/stems/
 output/*.mp4
-ascii/

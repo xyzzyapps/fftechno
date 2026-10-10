@@ -1,27 +1,29 @@
 """visualizer.vpy - VapourSynth + GLSL (vs-placebo) visualizer for output/techno.wav.
 
-Aesthetic: an "insane" time-driven Shadertoy-style procedural scene - a
-kaleidoscopic neon acid tunnel with a glowing core, audio-reactive spokes and
-rays, kick glitches and film grain - with a two-digit countdown numeral
-overlaid (70 bars counting down), i.e. film-leader meets Berlin acid.
+Aesthetic: black-and-white. Images from the `ascii/` folder are converted to
+ASCII art (a self-contained numpy bitmap font, no external deps), looped at
+random one every 2 bars, and a Berlin-techno overlay (hypnotic rings, audio
+spokes, grid, scanlines, kick glitch, grain) is drawn over them in monochrome by
+a GPU GLSL shader.
 
 Pipeline
 --------
-1. numpy STFT -> per-frame band levels; a small data strip (67 values x 24 px) is
-   written into the top rows of a YUV444P16 clip each frame.
-2. core.placebo.Shader runs a GLSL (mpv/libplacebo syntax) shader. libplacebo
-   custom shaders have no iTime, but vs-placebo exposes the `frame` uniform, so
-   the shader animates on float(frame)/FPS. It reads the data strip via
-   HOOKED_tex for audio reactivity. The shader is the whole visual.
-3. A countdown numeral is drawn over the shader output on the luma plane, then
-   the clip is converted to YUV420P8 for y4m piping.
+1. At load: decode each needed image with ffmpeg -> 120x72 gray grid -> ASCII
+   bitmap -> cached uint8 frame. Random image per 2-bar block (deterministic RNG).
+2. Per frame: write the ASCII frame into the luma plane and the audio data strip
+   (64 bands + bass + kick + energy) into rows 0-3 of a YUV444P16 clip.
+3. core.placebo.Shader runs a GLSL shader that reads the ASCII (HOOKED_tex), the
+   strip (audio reactivity) and `frame` (time) and draws the B/W overlay.
+4. Convert to YUV420P8 for y4m piping.
 
 Run:  .venv\\Scripts\\vspipe.exe -c y4m visualizer.vpy - | ffmpeg -f yuv4mpegpipe -i - ...
 Info: .venv\\Scripts\\vspipe.exe -i visualizer.vpy -
 """
 
 import ctypes
+import glob
 import math
+import subprocess
 import wave
 
 import numpy as np
@@ -33,78 +35,76 @@ core = vs.core
 # Configuration
 # ---------------------------------------------------------------------------
 AUDIO_PATH = "output/techno.wav"
+IMG_DIR = "ascii"
 W, H, FPS = 1920, 1080, 30
 NBARS = 64
-BAR = 60.0 / 140.0 * 4.0            # bar length in seconds (1.7142857)
-CELL = 24                           # strip: pixels per value
-AUX_X = NBARS * CELL                # first aux value x-offset
+BAR = 60.0 / 140.0 * 4.0            # 1.7142857 s
+CELL = 24                           # strip pixels per value
 STRIP_ROWS = 4
-CENTRE = (W * 0.5, H * 0.5)
+IMG_PERIOD = 60.0 / 140.0           # seconds per ascii image (one per beat = rapid)
+
+GRID_W, GRID_H = 80, 45             # ascii cells
+CELL_W, CELL_H = W // GRID_W, H // GRID_H
+RAMP = " .:-=+*#%@"
+
+GLYPHS = {
+    ".": ["00000", "00000", "00000", "00000", "00000", "00100", "00100"],
+    ":": ["00000", "00100", "00100", "00000", "00100", "00100", "00000"],
+    "-": ["00000", "00000", "00000", "11111", "00000", "00000", "00000"],
+    "=": ["00000", "00000", "11111", "00000", "11111", "00000", "00000"],
+    "+": ["00000", "00100", "00100", "11111", "00100", "00100", "00000"],
+    "*": ["00100", "10101", "01110", "11111", "01110", "10101", "00100"],
+    "#": ["01010", "01010", "11111", "01010", "11111", "01010", "01010"],
+    "%": ["11001", "11010", "00010", "00100", "01000", "01011", "10011"],
+    "@": ["01110", "10001", "10111", "10101", "10111", "10000", "01110"],
+}
+_GLYPH_ARR = {k: np.array([[int(c) for c in row] for row in v], np.uint8)
+              for k, v in GLYPHS.items()}
 
 
 # ---------------------------------------------------------------------------
-# GLSL shader (mpv / libplacebo syntax; `frame` + `random` are provided by
-# vs-placebo, HOOKED_tex samples the input strip for audio reactivity)
+# GLSL shader (mpv/libplacebo syntax; `frame` + `random` provided by vs-placebo)
 # ---------------------------------------------------------------------------
 SHADER = """
 //!HOOK MAIN
 //!BIND HOOKED
-//!DESC berlin acid tunnel
+//!DESC ascii bw berlin
 
 #define FPS 30.0
 
-float strip(float idx){
-    return HOOKED_tex(vec2((idx*24.0+12.0)/1920.0, 1.5/1080.0)).x;
-}
+float strip(float idx){ return HOOKED_tex(vec2((idx*24.0+12.0)/1920.0, 1.5/1080.0)).x; }
 float band(float b){ return strip(b); }
 float aux(float i){ return strip(64.0+i); }
-
-vec3 pal(float x){
-    return mix(vec3(0.10,0.02,0.28), vec3(0.95,0.25,0.85),
-               0.5+0.5*sin(6.28318*x))
-         + vec3(0.0,0.25,0.30)*(0.5+0.5*sin(6.28318*(x+0.25)));
-}
 float hash(float n){ return fract(sin(n)*43758.5453); }
 
 vec4 hook(){
     float t = float(frame)/FPS;
-    float bass = aux(0.0);
-    float kick = aux(1.0);
-    float energy = aux(2.0);
+    float bass = aux(0.0), kick = aux(1.0), energy = aux(2.0);
     vec2 res = target_size;
     vec2 uv = (HOOKED_pos*res - 0.5*res)/res.y;
-
     float r = length(uv);
-    float ang = atan(uv.y, uv.x) + t*0.15;
+    float ang = atan(uv.y, uv.x) + t*0.10;
     float seg = 8.0;
     float ka = abs(mod(ang, 6.28318/seg) - 3.14159/seg);
 
-    // perspective tunnel coordinates
-    float depth = 1.0/(r + 0.15) + t*1.2 + bass*2.0;
-    vec2 tp = vec2(ka*3.0, depth);
-    float gx = smoothstep(0.90, 1.0, abs(fract(tp.x)-0.5)*2.0);
-    float gy = smoothstep(0.85, 1.0, abs(fract(tp.y)-0.5)*2.0);
-    float grid = max(gx, gy);
+    float lum = HOOKED_tex(HOOKED_pos).x;                     // ascii base
 
-    vec3 col = pal(depth*0.05 + bass*0.2) * (0.10 + grid*1.3);
-    col += exp(-9.0*r) * vec3(1.0,0.60,0.15) * (0.40 + kick*1.5);
-
+    float rings = smoothstep(0.86, 1.0, sin(1.0/(r+0.12)*3.0 - t*3.0 + bass*6.0));
     float spokes = 0.0;
     for(int i=0;i<8;i++){
         spokes += band(float(i)*8.0) * exp(-22.0*abs(ka - 0.12*float(i)));
     }
-    col += pal(0.6 + 0.2*energy) * spokes * 0.7;
-    col += pal(0.4 + r*0.3) * smoothstep(0.9, 0.0, r) * (0.10 + energy*0.6);
+    float grid = smoothstep(0.90, 1.0, abs(fract(uv.x*12.0 + t*0.15)-0.5)*2.0);
 
-    if(step(0.75, kick) > 0.5){
-        col = col.gbr;
-        col += (hash(floor(t*30.0)) - 0.5)*0.2;
+    float col = lum*0.95 + rings*0.5 + spokes*0.45 + grid*0.18;
+    col += exp(-9.0*r) * (0.15 + kick*0.9);
+    col *= 1.0 - 0.6*r;
+    col *= 0.88 + 0.12*sin(HOOKED_pos.y*res.y*1.5708);
+    col += (random - 0.5)*0.06;
+    if(step(0.78, kick) > 0.5){
+        col = col*1.5 + (hash(floor(t*30.0)) - 0.5)*0.3;
     }
-
-    col = pow(clamp(col, 0.0, 1.0), vec3(1.3));
-    col *= 1.0 - 0.7*r;
-    col += (random - 0.5)*0.05;
-    return vec4(col, 1.0);
+    return vec4(vec3(col), 1.0);
 }
 """
 
@@ -116,37 +116,36 @@ def plane_u16(frame, p):
     """Writable numpy uint16 view of a 16-bit plane (R81 API)."""
     sw, sh = frame.format.subsampling_w, frame.format.subsampling_h
     pw, ph = frame.width >> sw, frame.height >> sh
-    stride = frame.get_stride(p)          # bytes
+    stride = frame.get_stride(p)
     ptr = frame.get_write_ptr(p).value
     buf = (ctypes.c_uint8 * (stride * ph)).from_address(ptr)
     return np.frombuffer(buf, dtype=np.uint16).reshape(ph, stride // 2)[:, :pw]
 
 
-SEG = {0: "abcdef", 1: "bc", 2: "abged", 3: "abgcd", 4: "fgbc",
-       5: "afgcd", 6: "afgecd", 7: "abc", 8: "abcdefg", 9: "abcdfg"}
+def decode_gray(path):
+    """Decode an image to a GRID_H x GRID_W uint8 grayscale grid via ffmpeg."""
+    out = subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", path,
+         "-vf", f"scale={GRID_W}:{GRID_H}:flags=area,format=gray",
+         "-f", "rawvideo", "-"],
+        capture_output=True)
+    return np.frombuffer(out.stdout, np.uint8)[:GRID_W * GRID_H].reshape(GRID_H, GRID_W)
 
 
-def draw_digit_luma(luma, d, cx, cy, w, h, th, value):
-    """Additively draw a 7-segment numeral into a uint16 luma plane."""
-    left, top = int(cx - w / 2), int(cy - h / 2)
-    right, bottom, mid = left + int(w), top + int(h), top + int(h / 2)
-    segs = {
-        "a": (left + th, top, right - th, top + th),
-        "b": (right - th, top + th, right, mid),
-        "c": (right - th, mid, right, bottom - th),
-        "d": (left + th, bottom - th, right - th, bottom),
-        "e": (left, mid, left + th, bottom - th),
-        "f": (left, top + th, left + th, mid),
-        "g": (left + th, mid - th // 2, right - th, mid + th // 2),
-    }
-    for name, (x0, y0, x1, y1) in segs.items():
-        if name not in SEG[d]:
-            continue
-        for pad, frac in ((0, 1.0), (8, 0.4), (18, 0.15)):
-            add = int(value * frac)
-            reg = luma[max(0, y0 - pad):min(H, y1 + pad),
-                       max(0, x0 - pad):min(W, x1 + pad)]
-            reg[:] = np.clip(reg.astype(np.int32) + add, 0, 65535).astype(np.uint16)
+def render_ascii(grid):
+    """Map a grayscale grid to an ASCII-art uint8 frame (H x W)."""
+    canvas = np.zeros((H, W), np.uint8)
+    idx = ((grid.astype(np.float32) / 255.0) * (len(RAMP) - 1)).round().astype(np.int32)
+    for cy in range(GRID_H):
+        for cx in range(GRID_W):
+            g = _GLYPH_ARR.get(RAMP[idx[cy, cx]])
+            if g is None:
+                continue
+            tile = np.repeat(np.repeat(g, 3, 0), 4, 1) * 255   # 21 x 20
+            y0, x0 = cy * CELL_H, cx * CELL_W
+            reg = canvas[y0:y0 + tile.shape[0], x0:x0 + tile.shape[1]]
+            np.maximum(reg, tile, out=reg)
+    return canvas
 
 
 # ---------------------------------------------------------------------------
@@ -195,9 +194,7 @@ def analyse(path):
     smooth = np.zeros_like(level)
     prev = np.zeros(NBARS, np.float32)
     for i in range(n_frames):
-        prev = np.where(level[i] > prev,
-                        prev + (level[i] - prev) * 0.55,
-                        prev * 0.80)
+        prev = np.where(level[i] > prev, prev + (level[i] - prev) * 0.55, prev * 0.80)
         smooth[i] = prev
 
     bass = norm(bass_db, 10, 99)
@@ -216,19 +213,39 @@ A = analyse(AUDIO_PATH)
 NF = A["n_frames"]
 TOTAL_BARS = int(math.ceil(A["duration"] / BAR))
 
+# ---------------------------------------------------------------------------
+# ASCII frames: one random image per beat (rapid), rendered on demand + cached
+# ---------------------------------------------------------------------------
+_files = sorted(glob.glob(f"{IMG_DIR}/*.jpg")) + sorted(glob.glob(f"{IMG_DIR}/*.png"))
+_grids = [decode_gray(p) for p in _files] if _files else []
+N_IMG_BLOCKS = int(math.ceil(A["duration"] / IMG_PERIOD)) + 1
+_rng = np.random.default_rng(20261010)
+_picks = _rng.integers(0, max(1, len(_files)), size=N_IMG_BLOCKS)
+_render_cache = {}
 
-# ---------------------------------------------------------------------------
-# Data clip: YUV444P16 with the audio strip in the top rows
-# ---------------------------------------------------------------------------
+
+def ascii_for_block(blk):
+    """Render (and cache) the ASCII frame for a block; bounded cache."""
+    if blk not in _render_cache:
+        if len(_render_cache) > 8:
+            _render_cache.clear()
+        if _grids:
+            _render_cache[blk] = render_ascii(_grids[int(_picks[blk])])
+        else:
+            _render_cache[blk] = np.zeros((H, W), np.uint8)
+    return _render_cache[blk]
+
+
 def build_data(n, f):
     fc = f.copy()
     luma = plane_u16(fc, 0)
-    vals = np.concatenate([A["level"][min(n, NF - 1)],
-                           [A["bass"][min(n, NF - 1)],
-                            A["kick"][min(n, NF - 1)],
-                            A["energy"][min(n, NF - 1)]]]).astype(np.float32)
-    for i, v in enumerate(vals):
-        x0 = i * CELL
+    i = min(n, NF - 1)
+    blk = min(int((n / FPS) / IMG_PERIOD), N_IMG_BLOCKS - 1)
+    luma[:] = ascii_for_block(blk).astype(np.uint16) * 257
+    vals = np.concatenate([A["level"][i], [A["bass"][i], A["kick"][i],
+                                          A["energy"][i]]]).astype(np.float32)
+    for k, v in enumerate(vals):
+        x0 = k * CELL
         luma[0:STRIP_ROWS, x0:x0 + CELL] = np.uint16(np.clip(v, 0, 1) * 65535)
     return fc
 
@@ -237,29 +254,10 @@ blank = core.std.BlankClip(width=W, height=H, format=vs.YUV444P16,
                            length=NF, fpsnum=FPS, fpsden=1)
 data = core.std.ModifyFrame(blank, blank, build_data)
 
-# ---------------------------------------------------------------------------
-# GLSL shader (the whole visual) -> YUV444P16
-# ---------------------------------------------------------------------------
 shaded = core.placebo.Shader(data, shader_s=SHADER, width=W, height=H,
                              sigmoidize=False, linearize=False, matrix=5)
 
-
-# ---------------------------------------------------------------------------
-# Countdown numeral overlay on the luma plane
-# ---------------------------------------------------------------------------
-def overlay(n, f):
-    fc = f.copy()
-    luma = plane_u16(fc, 0)
-    bar_index = int((n / FPS) / BAR)
-    number = max(1, TOTAL_BARS - bar_index)
-    tens, ones = (number // 10) % 10, number % 10
-    draw_digit_luma(luma, tens, CENTRE[0] - 130, CENTRE[1], 200, 340, 36, 32000)
-    draw_digit_luma(luma, ones, CENTRE[0] + 130, CENTRE[1], 200, 340, 36, 32000)
-    return fc
-
-
-with_num = core.std.ModifyFrame(shaded, shaded, overlay)
-clip = core.resize.Bicubic(with_num, format=vs.YUV420P8, matrix_in_s="470bg",
+clip = core.resize.Bicubic(shaded, format=vs.YUV420P8, matrix_in_s="470bg",
                            matrix_s="470bg", range_in_s="limited",
                            range_s="limited")
 clip.set_output()

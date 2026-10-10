@@ -1,107 +1,94 @@
 # ffmpeg_techno
 
-A **two-minute hardgroove techno track** with a **granular robotic-speech** voice
-and a **303 acid** line, synthesized **entirely by ffmpeg** (no DAW, no sampler),
-plus a **VapourSynth + GLSL (vs-placebo)** Shadertoy-style visualizer combined into
-a final video.
+A **three-minute hardgroove techno track** - granular robotic-speech voice, 303
+acid line, and a spoken "speak to me" vocal - synthesized **entirely by ffmpeg**
+(no DAW, no sampler), with a **black-and-white VapourSynth + GLSL** visual that
+turns images into **ASCII art** and draws Berlin techno overlays on top, muxed
+into a final video.
 
 Outputs:
-- `output/techno.wav` - 48 kHz stereo, 2:00, **-14.0 LUFS**, **-1.6 dBFS** true peak
-- `output/techno_visualizer.mp4` - 1920x1080 30 fps, shader visual (~168 MB)
-- `output/techno_visualizer_720p.mp4` - web preview (~79 MB)
+- `output/techno.wav` - 48 kHz stereo, 3:00, **-14.0 LUFS**, **-1.7 dBFS** true peak
+- `output/techno_visualizer.mp4` - 1920x1080 30 fps, ASCII + B/W shader (~258 MB)
+- `output/techno_visualizer_720p.mp4` - web preview (~128 MB)
 
 ## Requirements
 
-- `ffmpeg` / `ffprobe` on `PATH` (gyan.dev full build: needs `aevalsrc`, `acrusher`,
-  `asoftclip`, `sidechaincompress`, `alimiter`, `loudnorm`, `equalizer`, `highpass`,
-  `lowpass`, `acompressor`).
-- PowerShell (to run the build scripts; you can also call ffmpeg by hand).
-- For the video: a local venv with `vapoursynth`, `numpy`, `vs-placebo`.
+- `ffmpeg` / `ffprobe` on `PATH` (gyan.dev full build).
+- PowerShell (build scripts; ffmpeg can also be called by hand).
+- Video: a local venv with `vapoursynth`, `numpy`, `vs-placebo`.
+- Vocal: **espeak-ng** (downloaded into `tools/` by the setup below).
 
 ## Build the audio
 
 ```powershell
+# one-off: fetch espeak-ng into tools/ (no system install)
+mkdir tools
+curl -L -o tools/espeak-ng.msi https://github.com/espeak-ng/espeak-ng/releases/download/1.52.0/espeak-ng.msi
+msiexec /a tools\espeak-ng.msi /qn TARGETDIR="%CD%\tools\espeak-ng"
+
 pwsh -File build.ps1
 ```
 
-Raw commands (all `build.ps1` does):
-
-```powershell
-foreach ($s in 'kick','clap','hat','ohat','perc','bass','growl','acid') {
-  ffmpeg -hide_banner -v error -filter_complex_script "filters/$s.txt" `
-    -map "[out]" -c:a pcm_f32le "output/stems/$s.wav" -y
-}
-ffmpeg -hide_banner -v error `
-  -i output/stems/kick.wav -i output/stems/clap.wav -i output/stems/hat.wav `
-  -i output/stems/ohat.wav -i output/stems/perc.wav -i output/stems/bass.wav `
-  -i output/stems/growl.wav -i output/stems/acid.wav `
-  -filter_complex_script filters/mix.txt -map "[out]" -c:a pcm_f32le output/mix_pre.wav -y
-ffmpeg -hide_banner -v error -i output/mix_pre.wav `
-  -filter_complex_script filters/master.txt -map "[out]" -c:a pcm_s16le output/techno.wav -y
-```
+`build.ps1` = generate the vocal (`make_vox.ps1`) -> render 9 expression stems ->
+mix (10 inputs) -> master.
 
 ## Build the video
 
 ```powershell
 python -m venv .venv
 .venv\Scripts\pip install vapoursynth numpy vs-placebo
-.venv\Scripts\vapoursynth config        # one-off: registers Python paths for vspipe
+.venv\Scripts\vapoursynth config        # one-off
 pwsh -File build_video.ps1
 ```
+
+Put images (jpg/png) in `ascii/`; the visualizer picks one at random every 2 bars,
+converts it to ASCII art, and draws the B/W overlay.
 
 ## Layout
 
 ```
-filters/kick.txt    punchy 4-on-the-floor kick
-filters/clap.txt    clap on 2 & 4
-filters/hat.txt     closed 16th hats
-filters/ohat.txt    offbeat open hat
-filters/perc.txt    syncopated toms/congas
-filters/bass.txt    rolling saw bass
-filters/growl.txt   granular robotic-speech voice
-filters/acid.txt    303 acid line (resonant saw, accents, slides)
-filters/mix.txt     8 stems + section automation -> sidechain -> bus
-filters/master.txt  two-pass linear loudnorm + limiter -> final
-build.ps1           audio passes
-visualizer.vpy      VapourSynth + GLSL shader visual
+filters/kick clap hat ohat perc shaker bongo rim bass growl acid .txt  expression stems
+filters/mix.txt     10 inputs + section automation -> sidechain -> bus
+filters/master.txt  two-pass linear loudnorm + limiter
+make_vox.ps1        espeak-ng vocal -> output/stems/vox.wav
+build.ps1           vocal + stems + mix + master
+visualizer.vpy      VapourSynth + GLSL (ASCII art + B/W Berlin overlay)
 build_video.ps1     vspipe -> ffmpeg mux/encode -> MP4
+tools/              espeak-ng (gitignored)
+ascii/              source images (gitignored)
 output/             techno.wav, techno_visualizer*.mp4, stems/, logs/
 ```
 
-Each `filters/*.txt` is an ffmpeg `-filter_complex_script` graph ending in `[out]`.
-
 ## How it works (short version)
 
-- **Sequencing without a sequencer.** `aevalsrc` evaluates a math expression per
-  sample; `mod(t, period)` turns it into a repeating pattern (kick every beat,
-  closed hats every 16th, offbeat open hat on the "&", clap on 2 & 4, toms on a
-  syncopated pattern).
-- **Hardgroove.** 140 BPM, punchy kick, offbeat open hats, tribal toms, rolling
-  16th bass. **70 bars / 2:00**, arranged with per-stem `volume` automation
-  (`eval=frame`) into intro / main / break / main2 / outro.
-- **303 acid.** A saw oscillator with a per-16th pitch pattern, accent steps and a
-  per-note pitch-bend "squawk", then resonant `equalizer` peaks + `asoftclip`
-  overdrive + `acrusher` -> acid.
-- **Granular robotic speech.** A formant-rich FM carrier multiplied by a grain
-  train and a per-slot syllable window, with a per-grain pitch contour, ring mod
-  and formant EQ.
-- **Glue.** Kick keys a `sidechaincompress` on the bass+voice bus; the master is
-  linearly normalised to -14 LUFS with a true-peak limiter.
+- **Sequencing without a sequencer.** `aevalsrc` per-sample expressions + `mod(t,period)`.
+- **Hardgroove, 140 BPM, 3:00 (105 bars).** Punchy kick, offbeat open hats,
+  syncopated toms, shaker, rolling bass; arranged with per-stem `volume`
+  automation (`eval=frame`) into intro/main/break/main2/break2/main3/outro.
+- **303 acid.** Saw with a per-16th pattern, accents, per-note bend, and a
+  **time-automated two-branch filter crossfade** (bright saw vs. dark low-passed)
+  for a real moving "knob" sweep, plus resonant EQ + overdrive.
+- **Granular robotic speech.** FM carrier x grain train x per-slot syllable window,
+  per-grain pitch contour, ring mod, formant EQ.
+- **Vocal.** espeak-ng "speak to me" pitched down, bit-crushed, reverbed, placed at
+  section hits.
+- **Stereo depth.** Per-stem panning + Haas + `extrastereo` (mid ~4 dB above side).
+- **Glue.** Kick side-chains the bass+voice bus; master normalised to -14 LUFS.
+- **Quality pass (no samples).** Oscillators are generated at **192 kHz** and
+  anti-alias low-passed before downsampling to 48 kHz; a **convolution reverb**
+  (synthesized decaying-noise IR via `afir`) adds space on a high-passed send;
+  kick/bass are **layered** (sub-octave, noise transient, detuned unison); hats/
+  perc get per-step **velocity**; the master adds a tone shelf + dither.
 
-See `SPEC.md` for the full spec, expressions and diagrams.
+## Visualizer (VapourSynth + GLSL, B/W)
 
-## Visualizer + final video (VapourSynth + GLSL)
-
-`visualizer.vpy` runs a real GLSL shader via **vs-placebo** (`core.placebo.Shader`):
-- VapourSynth writes a small audio data-strip (64 spectrum bands + bass + kick +
-  energy) into the top rows of a YUV444P16 clip each frame.
-- A Shadertoy-style procedural shader - a rotating kaleidoscopic neon tunnel with a
-  glowing core, audio-reactive spokes/rays, kick glitches and grain - generates the
-  whole visual. libplacebo custom shaders have no `iTime`, but vs-placebo exposes
-  the `frame` uniform, so the shader animates on `float(frame)/FPS`; it reads the
-  strip via `HOOKED_tex` for audio reactivity.
-- A two-digit 7-segment **countdown numeral** (70 -> 1, one per bar) is overlaid.
-
-The shader runs on the GPU (~60 fps), so the full 2-minute render is a few minutes.
+- Images from `ascii/` are decoded with ffmpeg and rendered to **ASCII art** with a
+  self-contained numpy 5x7 bitmap font (no external deps), one random image per
+  2-bar block.
+- A GPU GLSL shader (vs-placebo) reads the ASCII (`HOOKED_tex`), the audio strip
+  (64 bands + bass + kick + energy) and `frame` (time), and draws a **monochrome**
+  Berlin overlay: hypnotic rings, audio spokes, grid, scanlines, kick glitch, grain.
+- libplacebo custom shaders have no `iTime`, but vs-placebo exposes `frame`, so it
+  animates; the shader output carries `matrix=5` so the follow-up resize has a path.
 
 Verify: `ffprobe output/techno_visualizer.mp4`.
