@@ -12,4 +12,4 @@ Entry point::
     python -m fftechno boost 2.0  # re-level the final MP4s
 """
 
-__version__ = "1.0.0"
+__version__ = "0.1.0"

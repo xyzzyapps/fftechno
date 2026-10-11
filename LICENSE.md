@@ -1,5 +1,7 @@
 # PolyForm Noncommercial License 1.0.0
 
+Required Notice: Copyright (c) 2026 Xyzzy Apps <xyzzyapps@gmail.com>
+
 <https://polyformproject.org/licenses/noncommercial/1.0.0>
 
 ## Acceptance

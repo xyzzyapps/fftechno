@@ -17,7 +17,7 @@ black-and-white ASCII video, driven by markdown.
 - Master: two-pass linear loudnorm -> -13.0 LUFS / -1.0 dBFS.
 - Build lock prevents overlapping builds from corrupting stems.
 - Video: `visualizer.vpy` (VapourSynth + GLSL, ASCII + B/W overlay).
-- Docs: `README.md` (beginner/musician), `SPEC.md` (technical), `LICENSE`.
+- Docs: `README.md` (beginner/musician), `SPEC.md` (technical), `LICENSE.md`.
 
 ## Optional next
 

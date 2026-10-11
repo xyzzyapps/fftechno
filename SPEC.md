@@ -236,7 +236,7 @@ build lock guarantees a single writer.
 - **A template error?** `synth` names the missing value.
 - **Where are logs?** `output/logs/` (`vspipe.log`, `ffmpeg_video.log`,
   `mix.txt`).
-- **Noncommercial?** Yes - PolyForm Noncommercial 1.0.0 (`LICENSE`).
+- **Noncommercial?** Yes - PolyForm Noncommercial 1.0.0 (`LICENSE.md`).
 
 ## 17. Extension guide
 
@@ -257,7 +257,7 @@ filters/*.txt                generated graphs + vox.txt
 fftechno/                    config, proc (build lock), audio, synth,
                              arrangement, vox, video, cli
 visualizer.vpy               the video
-pyproject.toml LICENSE README.md SPEC.md TODO.md
+pyproject.toml LICENSE.md README.md SPEC.md TODO.md
 output/                      techno.wav, techno_visualizer*.mp4, stems/, logs/
 tools/ ascii/                optional external inputs
 ```

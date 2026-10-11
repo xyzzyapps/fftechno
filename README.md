@@ -145,5 +145,5 @@ come out identical every time, so the track is fully reproducible.
 
 ## License
 
-PolyForm Noncommercial License 1.0.0 - see [`LICENSE`](LICENSE). Noncommercial use
+PolyForm Noncommercial License 1.0.0 - see [`LICENSE.md`](LICENSE.md). Noncommercial use
 only. The full technical specification is in [`SPEC.md`](SPEC.md).
