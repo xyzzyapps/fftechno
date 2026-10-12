@@ -42,7 +42,7 @@ Out of scope: real-time performance, a GUI, MIDI import, sample playback.
 | bars | 155 (4:00) |
 | sample rate | 48000 Hz (oscillators generated at 192000 Hz, then downsampled) |
 | loudness target | -13 LUFS, true peak -1.0 dBFS |
-| stems | kick, snare, snarefill, clap, hat, ohat, ride, crash, breakbeat, shaker, reese, acid, lead_pwm, lead_fm, pad, stab |
+| stems | kick, snare, snarefill, clap, hat, ohat, ride, crash, breakbeat, conga, shaker, reese, acid, lead_pwm, lead_fm, pad, stab, vox |
 
 Derived: `beat = 60/155 = 0.387097 s`, `step (16th) = 0.096774 s`,
 `bar = 1.548387 s`.
@@ -81,7 +81,7 @@ Commands (`python -m fftechno ...`):
 |---------|--------|
 | `synth` | `sounds.md` + `templates/` -> `filters/<name>.txt` |
 | `audio` | `synth` -> IR -> vocals -> stems -> mix -> master -> `techno.wav` |
-| `girl [--look edge\|pollock] [--mode reset\|trail\|build]` | source clip -> look -> `girl_loop.mp4` + `girl_frames.npy` |
+| `girl [--look edge\|pollock\|outline] [--mode reset\|trail\|build]` | source clip -> look -> `girl_loop.mp4` + frame data |
 | `video [--look ..] [--mode ..] [--boost F] [--static]` | `girl` -> render -> mux -> 720p preview -> optional re-level |
 | `all [--look ..] [--mode ..] [--boost F] [--static]` | `audio`, then `girl`, then `video` |
 | `boost F` | re-encode the MP4 audio at gain `F` (video copied) |
@@ -158,12 +158,18 @@ Sixteen instruments, all parameterised (values in `sounds.md`):
 | crash | crash.txt | noise burst, rings every `period` seconds |
 | breakbeat | breakbeat.txt | kick + snare + hat `kgates/sgates/hgates`, `chop_*` stutter |
 | shaker | shaker.txt | `decay, hp, gates` |
+| conga | conga.txt | tuned hand drum: `pitches, gates, slap`, `sweep, rate, decay, hp, lpc, aecho` |
 | reese | reese.txt | square + detune + sub through a resonant 24 dB LP, `beatgrid` notes |
 | acid | acid.txt | 303: `notes, accents, bends, gates`; filter crossfade + resonant peak |
 | lead_pwm | lead_pwm.txt | unison PWM pulse lead, `notes, gates` |
 | lead_fm | lead_fm.txt | 2-op FM lead, `notes, gates`, `aphaser` |
 | pad | pad.txt | detuned chord (`n1/n2/n3`), slow swell |
 | stab | stab.txt | short detuned chord stab (`n1/n2/n3, gates`) |
+
+The **vox** stem is not a template: `fftechno/vox.py` synthesizes short phrases
+with ffmpeg's built-in `flite` and places them via `filters/vox.txt`; the same
+`config.VOX_LINES` times are written to `output/lyrics.json` for the on-screen
+lyrics.
 
 **Losslessness.** The generated graphs reproduce the original hand-authored
 expressions value-for-value (verified: rendering each stem against its original
@@ -201,6 +207,8 @@ Two passes: `loudnorm` in measurement mode, then a linear apply.
 ```
 
 `alimiter` must use `level=disabled` (its auto-level would boost over the ceiling).
+With `--safe` (off by default) a second, stricter `alimiter` (`limit=0.5`, about
+-6 dBFS) is inserted for ear protection.
 
 ## 11. Output format
 
@@ -209,36 +217,38 @@ true peak -1.0 dBFS.
 
 ## 12. Video - `visualizer.vpy`
 
-VapourSynth + vs-placebo. The main visual is the dancing girl: a compact uint8
-frame stack (`output/girl_frames.npy`, 960x540, one loop = a whole number of beats)
-is written into the luma plane of a low-res YUV444P16 clip, the audio data strip
-(64 bands + bass + kick + energy) into the top rows, and the clip is upscaled to
-1920x1080. A GLSL shader reads the girl (`HOOKED_tex`), the strip and `frame`
-(time) and draws a subtle black-and-white Berlin overlay plus a kick-synced
-brightness punch; the top strip rows are masked black. Output is YUV420P8, piped
-to ffmpeg by `vspipe -c y4m`. `--static` renders a single frozen frame.
+VapourSynth + vs-placebo. The main visual is the dancing girl: a small piece of
+per-frame data is written into a low-res YUV444P16 clip (960x540), the audio data
+strip (64 bands + bass + kick + energy) into the top rows, and the clip is
+upscaled to 1920x1080. A GLSL shader reads the picture (`HOOKED_tex`), the strip
+and `frame` (time) and draws a subtle Berlin overlay plus a kick-synced brightness
+punch; it **preserves chroma** (so the blue hair stays blue) and masks the top
+strip rows black. Output is YUV420P8, piped to ffmpeg by `vspipe -c y4m`.
+`--static` renders a single frozen frame.
 
-The visualizer reads its inputs from the environment: `FFTECHNO_AUDIO` (the
-mastered WAV), `FFTECHNO_GIRL_FRAMES` (the frame stack), `FFTECHNO_STATIC` and
-`FFTECHNO_POLLOCK` (the paint-accumulation mode; empty for the edge look). If the
-frame stack is missing it falls back to the original ASCII art of any
+Environment inputs: `FFTECHNO_AUDIO` (the mastered WAV), `FFTECHNO_GIRL_FRAMES`
+(grey frame stack - edge/pollock), `FFTECHNO_GIRL_SPRITES` + `FFTECHNO_GIRL_PICK`
+(RGB sprites + per-frame index - outline), `FFTECHNO_POLLOCK` (paint-accumulation
+mode) and `FFTECHNO_STATIC`. If none is present it falls back to ASCII art of any
 `ascii/*.jpg|png`.
 
-### 12.1 Girl pipeline - `fftechno/girl.py` (+ `fftechno/matte.py` for edge)
+### 12.1 Girl pipeline - `fftechno/girl.py` (+ `fftechno/matte.py`)
 
 1. `source_clip()`: the first video in `ascii/`.
-2. Decode `GIRL_CROP_START .. +GIRL_CROP_DURATION` (2.0 s..5.0 s = 7 beats) at
-   native size/fps.
-3. **edge look**: `RVMMatte` (RVM mobilenetv3 ONNX via `onnxruntime`, recurrent so
-   temporally stable) -> per-frame alpha; `largest_component` keeps only the
-   subject (drops the crowd); composite over black; then `edgedetect` (white lines
-   on black). **pollock look**: skip the matte and use the whole frame - `gblur`
-   -> `edgedetect` -> two crossed rotated copies blended (`rotate`+`blend
-   =lighten`) for gestural strokes.
-4. ffmpeg: `fps=30`, fit to 16:9 with black bars (`scale`+`pad`), then the look.
-5. Emit `output/girl_loop.mp4` (1920x1080, 90 frames, silent, versioned; the
-   standalone loop adds `tblend=lighten` build-up and a random splatter) and
-   `output/girl_frames.npy` (the per-frame paint pass).
+2. Decode `GIRL_CROP_START .. +GIRL_CROP_DURATION` (2.0 s..5.0 s) at native size/fps.
+3. Per look:
+   - **edge**: `RVMMatte` -> alpha; `largest_component` keeps the subject (drops
+     the crowd); composite over black; `edgedetect` (white lines on black).
+   - **pollock**: skip the matte; whole frame -> `gblur` -> `edgedetect` -> two
+     crossed rotated copies blended (`rotate` + `blend=lighten`).
+   - **outline**: `RVMMatte` -> fine alpha; `largest_component` picks the subject
+     (crowd removed; the top truss margin is ignored); draw the **silhouette
+     contour only** (`dilate(subj) & ~subj` - no interior/face lines) in white,
+     plus the **blue hair chroma-keyed** from the source RGB.
+4. ffmpeg/numpy: `fps=30`, fit to 16:9 with black bars (`scale`+`pad`), then the look.
+5. Emit `output/girl_loop.mp4` (silent, versioned) and the frame data -
+   `girl_frames.npy` (edge/pollock) or `girl_sprites.npy` + `girl_pick.npy`
+   (outline).
 
 ### 12.2 Pollock accumulation - the three modes
 
@@ -248,12 +258,28 @@ splatter (never accumulated) each frame:
 
 | `--mode` | Behaviour | Decay/frame |
 |----------|-----------|-------------|
-| `reset` | clears at every loop boundary (a fresh canvas per 3 s phrase) | 0.90 |
+| `reset` | clears at every loop boundary (a fresh canvas per phrase) | 0.90 |
 | `trail` | short-lived streaks (default) | 0.85 |
 | `build` | long-lived, densely builds up | 0.995 |
 
-Because 3.0 s = 7 beats = 1/80 of the 4:00 track, the loop tiles the whole video
-exactly `80` times and always restarts on a beat.
+### 12.3 Outline look - beat-synced stills
+
+`outline` builds one RGB sprite per source frame (white silhouette contour + blue
+hair + an **eye outline** on black), then a per-output-frame index
+(`girl_pick.npy`) that picks a random sprite held for exactly one beat - the BPM
+is read from `song.md`, so the picture strobes in time with the track. The
+visualizer writes Y/U/V from the sprite so the colour survives the shader.
+
+The **eye outline** needs no ML: the head is the top of the mask, the eye band is
+a fixed fraction of it, and the eyes are the darkest blobs in the central face
+area (drawn as a dilated ring).
+
+### 12.4 On-screen lyrics
+
+The visualizer reads `output/lyrics.json` (`[[text, start], ...]`, written by
+`vox.py` from `config.VOX_LINES`, the same list that places the vocal audio) and
+draws each line for `LYRIC_DUR` seconds near the bottom using a self-contained 5x7
+uppercase bitmap font - no font file, no libass/fontconfig.
 
 ## 13. Verification and acceptance
 

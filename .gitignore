@@ -11,6 +11,9 @@ output/stems/
 output/*.mp4
 output/_probe/
 output/girl_frames.npy
+output/girl_sprites.npy
+output/girl_pick.npy
+output/lyrics.json
 output/techno_v*.wav
 /*.png
 /*.jpg

@@ -27,6 +27,9 @@ def _render_and_mux(audio: Path, *, look: str = "pollock", mode: str = "trail",
     env = dict(os.environ, FFTECHNO_STATIC="1" if static else "0",
                FFTECHNO_AUDIO=str(audio), FFTECHNO_GIRL_FRAMES=str(C.GIRL_FRAMES))
     env[C.GIRL_POLLOCK_ENV] = mode if look == "pollock" else ""
+    env[C.GIRL_SPRITES_ENV] = str(C.GIRL_SPRITES) if look == "outline" else ""
+    env[C.GIRL_PICK_ENV] = str(C.GIRL_PICK) if look == "outline" else ""
+    env["FFTECHNO_LYRICS"] = str(C.LYRICS) if C.LYRICS.exists() else ""
     C.OUTPUT.mkdir(parents=True, exist_ok=True)
     out = C.unique_path(C.MASTER_VIDEO)
     with open(C.LOGS / "vspipe.log", "wb") as vlog, \

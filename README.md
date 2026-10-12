@@ -58,8 +58,9 @@ To make the video too: `python -m fftechno all` (needs `ffmpeg` 9+ on your PATH)
 ## The big idea (in plain words)
 
 A techno track is built from layers, and we call each layer a **stem**. Here the
-stems are: **kick, snare, snarefill, clap, hats, ride, crash, breakbeat, shaker,
-reese (bass), acid (303), PWM lead, FM lead, pad, stab**.
+stems are: **kick, snare, snarefill, clap, hats, ride, crash, breakbeat, conga,
+shaker, reese (bass), acid (303), PWM lead, FM lead, pad, stab** and the **ffmpeg
+voice** (short spoken phrases, with matching on-screen lyrics).
 
 Two things decide how the track sounds:
 
@@ -128,9 +129,16 @@ silent. `gates` are 16 steps per bar - one bar of 16th notes.
 | `python -m fftechno all` | audio, then the girl loop, then video |
 | `python -m fftechno boost 2.0` | make the finished MP4s louder (200%) |
 
-`girl`, `video` and `all` also take `--look edge|pollock` (default `pollock`) and,
-for the Pollock look, `--mode reset|trail|build` (how the paint accumulates:
-per-phrase / decay trails / builds up).
+`audio`/`all` also take **`--safe`** (off by default): it adds an extra
+ear-protection limiter so the master can't exceed a conservative ceiling - useful
+for headphones. The voice (`flite`) and the burned-in lyrics come from
+`config.VOX_LINES`, so the sound and the on-screen text always agree.
+
+`girl`, `video` and `all` also take `--look edge|pollock|outline` (default
+`pollock`) and, for the Pollock look, `--mode reset|trail|build` (how the paint
+accumulates: per-phrase / decay trails / builds up). `outline` draws only the
+girl's silhouette (blue hair chroma-keyed, crowd removed) and cuts random stills
+in on the beat.
 
 A lock file stops two builds from running at once (they would corrupt each other).
 

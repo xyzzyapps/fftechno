@@ -64,18 +64,21 @@ def _measure(path: Path) -> dict[str, str]:
     return json.loads(match.group(0))
 
 
-def master() -> Path:
+def master(safe: bool = False) -> Path:
     """Two-pass linear loudness normalisation + limiter + dither -> techno.wav.
 
+    ``safe=True`` adds an extra, stricter limiter (ear protection; OFF by default).
     Returns the path actually written (a ``_v2``/``_v3`` name if the target
     already exists, so old renders are preserved)."""
     m = _measure(C.MIX_PRE)
+    guard = (f"alimiter=limit={C.SAFE_CEILING:g}:level=disabled," if safe else "")
     graph = (
         f"[0]loudnorm=I={C.LOUDNESS_I}:TP={C.LOUDNESS_TP}:LRA={C.LOUDNESS_LRA}"
         f":measured_I={m['input_i']}:measured_TP={m['input_tp']}"
         f":measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}"
         f":offset={m['target_offset']}:linear=true:print_format=summary,"
         f"alimiter=limit={C.LIMITER_CEILING}:level=disabled,"
+        + guard +
         "equalizer=f=9000:t=h:w=0.7:g=1.5,"
         "aresample=48000:out_sample_fmt=s16:dither_method=triangular_hp,"
         "aformat=sample_fmts=s16:channel_layouts=stereo[out]"
@@ -86,10 +89,10 @@ def master() -> Path:
     return out
 
 
-def build() -> Path:
+def build(safe: bool = False) -> Path:
     """Full audio pipeline: synth defs + IR + vocals + stems -> mix -> master.
 
-    Returns the path of the mastered WAV."""
+    ``safe=True`` adds the ear-protection limiter. Returns the mastered WAV path."""
     from . import synth, vox  # imported here so audio-only paths stay light
 
     names = synth.generate()        # sounds.md + templates -> filters/<name>.txt
@@ -98,4 +101,4 @@ def build() -> Path:
         vox.render()
     render_stems(names)
     mix()
-    return master()
+    return master(safe=safe)

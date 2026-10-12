@@ -47,12 +47,17 @@ GIRL_LOOP_BEATS = 7               # loop length in beats
 GIRL_FRAME_W, GIRL_FRAME_H = 960, 540   # stored frame stack size (16:9)
 GIRL_FRAMES = OUTPUT / "girl_frames.npy"    # intermediate consumed by the video
 GIRL_LOOP = OUTPUT / "girl_loop.mp4"        # standalone deliverable
-GIRL_LOOK = "pollock"           # "edge" (matte + line drawing) | "pollock"
+GIRL_SPRITES = OUTPUT / "girl_sprites.npy"  # outline look: RGB sprites (per source frame)
+GIRL_PICK = OUTPUT / "girl_pick.npy"        # outline look: sprite index per output frame
+GIRL_TOP_MARGIN = 70            # outline look: ignore the top rows (stage lights)
+GIRL_LOOK = "pollock"           # "edge" | "pollock" | "outline"
 GIRL_POLLOCK_MODE = "trail"     # "reset" | "trail" | "build" (paint accumulation)
-GIRL_POLLOCK_ENV = "FFTECHNO_POLLOCK"   # set by video.py; read by the visualizer
+GIRL_POLLOCK_ENV = "FFTECHNO_POLLOCK"        # set by video.py; read by the visualizer
+GIRL_SPRITES_ENV = "FFTECHNO_GIRL_SPRITES"
+GIRL_PICK_ENV = "FFTECHNO_GIRL_PICK"
 
 # --- musical timing --------------------------------------------------------
-BPM = 140
+BPM = 155                   # fallback; the video loop derives the BPM from song.md
 BEAT = 60.0 / BPM
 BAR = BEAT * 4
 DURATION = 240.0            # seconds (4 minutes)
@@ -68,12 +73,25 @@ LOUDNESS_LRA = 11.0
 LIMITER_CEILING = 0.88      # linear amplitude (~ -1.1 dBFS)
 
 # --- vocals (ffmpeg's built-in flite voice; no external TTS) ---------------
-# Phrases in order; each is placed by filters/vox.txt at a fixed time.
-VOX_PHRASES = (
-    "speak to me", "come on", "feel it", "hard groove", "let go",
-    "trust me", "lock in", "take me higher", "hands up",
+# (phrase, start_seconds): the single source of truth for BOTH the vocal audio
+# (placed by filters/vox.txt) and the on-screen lyrics.
+_VOX_BAR = 60.0 / 155 * 4      # bar length at the track BPM
+VOX_LINES = (
+    ("go deep", 8 * _VOX_BAR),
+    ("feel it", 24 * _VOX_BAR),
+    ("seek yourself", 40 * _VOX_BAR),
+    ("let go", 48 * _VOX_BAR),
+    ("go deeper", 72 * _VOX_BAR),
+    ("free your mind", 80 * _VOX_BAR),
+    ("come alive", 112 * _VOX_BAR),
+    ("know thyself", 128 * _VOX_BAR),
+    ("rise up", 145 * _VOX_BAR),
 )
 VOX_VOICE = "slt"           # flite female voice (16 kHz mono output)
+LYRICS = OUTPUT / "lyrics.json"        # written by vox; read by the visualizer
+
+# --- ear protection (OFF by default; opt in with --safe) -------------------
+SAFE_CEILING = 0.5          # linear ceiling when --safe is on (~ -6 dBFS)
 
 
 def unique_path(path: Path) -> Path:

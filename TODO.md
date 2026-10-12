@@ -9,12 +9,18 @@ black-and-white dancing-girl music video, driven by markdown.
 - Markdown control surfaces: `song.md` (arrangement + mix) and `sounds.md`
   (instruments), rendered through `templates/` via `{{key}}` and
   `{{if_steps(seq; grid; default)}}`.
-- Master: two-pass linear loudnorm -> -13.0 LUFS / -1.0 dBFS.
+- Master: two-pass linear loudnorm -> -13.0 LUFS / -1.0 dBFS; optional
+  **`--safe`** ear-protection limiter (off by default).
 - Build lock; non-clobbering outputs (`config.unique_path` -> `_v2`/`_v3`).
 - **ffmpeg 9**: filtergraphs read with `-/filter_complex FILE`.
-- Voice: ffmpeg's built-in `flite` (`slt`) - no external espeak-ng.
-- Video (`fftechno/girl.py`, `visualizer.vpy`): beat-locked dancing-girl loop with
-  `--look edge|pollock` (Pollock default) and `--mode reset|trail|build`.
+- Voice: ffmpeg's built-in `flite` (`slt`) - no external espeak-ng; short phrases
+  from `config.VOX_LINES`, which also drive the on-screen lyrics.
+- Video (`fftechno/girl.py`, `matte.py`, `visualizer.vpy`): beat-locked dancing-girl
+  loop with `--look edge|pollock|outline` (Pollock default) and `--mode
+  reset|trail|build`. The **outline** look shows only the silhouette contour
+  (no face interior, crowd removed) with the **blue hair chroma-keyed** and an
+  **eye outline** (mask-derived, no ML), cuts random stills in **on the beat**,
+  and burns the **lyrics** in at the vocal times; the shader preserves chroma.
 
 ### Track 1 - "hardgroove" (in git history, commit cb9741c)
 - 140 BPM, 12 instruments (kick, clap, hat, ohat, conga, bongo, rim, shaker, bass,
@@ -23,7 +29,8 @@ black-and-white dancing-girl music video, driven by markdown.
 ### Track 2 - "Basement" jungle techno (current `song.md`/`sounds.md`)
 - **155 BPM, 155 bars = 4:00**, sidechain on kick, `reese` low bus.
 - **16 instruments**: kick, snare, snarefill, clap, hat, ohat, ride, crash,
-  breakbeat, shaker, reese, acid, lead_pwm, lead_fm, pad, stab.
+  breakbeat, conga, shaker, reese, acid, lead_pwm, lead_fm, pad, stab - plus the
+  **vox** stem (ffmpeg `flite`, short phrases with matching on-screen lyrics).
 - New templates: `snare`, `ride`, `crash`, `breakbeat` (synthesised, chopped),
   `reese` (square + detune + sub, resonant 24 dB LP), `lead_pwm`, `lead_fm`,
   `pad`, `stab`.

@@ -26,6 +26,7 @@ Info: .venv\\Scripts\\vspipe.exe -i visualizer.vpy -
 
 import ctypes
 import glob
+import json
 import math
 import os
 import subprocess
@@ -41,6 +42,8 @@ core = vs.core
 # ---------------------------------------------------------------------------
 AUDIO_PATH = os.environ.get("FFTECHNO_AUDIO", "output/techno.wav")
 GIRL_FRAMES = os.environ.get("FFTECHNO_GIRL_FRAMES", "output/girl_frames.npy")
+GIRL_SPRITES = os.environ.get("FFTECHNO_GIRL_SPRITES", "")
+GIRL_PICK = os.environ.get("FFTECHNO_GIRL_PICK", "")
 # "reset" | "trail" | "build" for the Pollock look (empty = edge, no accumulation).
 POLLOCK = os.environ.get("FFTECHNO_POLLOCK", "").strip()
 IMG_DIR = "ascii"
@@ -72,6 +75,83 @@ GLYPHS = {
 _GLYPH_ARR = {k: np.array([[int(c) for c in row] for row in v], np.uint8)
               for k, v in GLYPHS.items()}
 
+# ---------------------------------------------------------------------------
+# On-screen lyrics: a self-contained 5x7 uppercase bitmap font (no font file).
+# ---------------------------------------------------------------------------
+LYRICS_PATH = os.environ.get("FFTECHNO_LYRICS", "")
+LYRIC_DUR = 2.8                     # seconds each line is shown
+
+_LETTERS = {
+    "A": [".###.", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
+    "B": ["####.", "#...#", "#...#", "####.", "#...#", "#...#", "####."],
+    "C": [".###.", "#...#", "#....", "#....", "#....", "#...#", ".###."],
+    "D": ["####.", "#...#", "#...#", "#...#", "#...#", "#...#", "####."],
+    "E": ["#####", "#....", "#....", "####.", "#....", "#....", "#####"],
+    "F": ["#####", "#....", "#....", "####.", "#....", "#....", "#...."],
+    "G": [".###.", "#...#", "#....", "#.###", "#...#", "#...#", ".###."],
+    "H": ["#...#", "#...#", "#...#", "#####", "#...#", "#...#", "#...#"],
+    "I": ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "#####"],
+    "J": ["..###", "...#.", "...#.", "...#.", "...#.", "#..#.", ".##.."],
+    "K": ["#...#", "#..#.", "#.#..", "##...", "#.#..", "#..#.", "#...#"],
+    "L": ["#....", "#....", "#....", "#....", "#....", "#....", "#####"],
+    "M": ["#...#", "##.##", "#.#.#", "#...#", "#...#", "#...#", "#...#"],
+    "N": ["#...#", "##..#", "#.#.#", "#..##", "#...#", "#...#", "#...#"],
+    "O": [".###.", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."],
+    "P": ["####.", "#...#", "#...#", "####.", "#....", "#....", "#...."],
+    "Q": [".###.", "#...#", "#...#", "#...#", "#.#.#", "#..#.", ".##.#"],
+    "R": ["####.", "#...#", "#...#", "####.", "#.#..", "#..#.", "#...#"],
+    "S": [".####", "#....", "#....", ".###.", "....#", "....#", "####."],
+    "T": ["#####", "..#..", "..#..", "..#..", "..#..", "..#..", "..#.."],
+    "U": ["#...#", "#...#", "#...#", "#...#", "#...#", "#...#", ".###."],
+    "V": ["#...#", "#...#", "#...#", "#...#", "#...#", ".#.#.", "..#.."],
+    "W": ["#...#", "#...#", "#...#", "#...#", "#.#.#", "##.##", "#...#"],
+    "X": ["#...#", "#...#", ".#.#.", "..#..", ".#.#.", "#...#", "#...#"],
+    "Y": ["#...#", "#...#", ".#.#.", "..#..", "..#..", "..#..", "..#.."],
+    "Z": ["#####", "....#", "...#.", "..#..", ".#...", "#....", "#####"],
+    "0": [".###.", "#...#", "#..##", "#.#.#", "##..#", "#...#", ".###."],
+    "1": ["..#..", ".##..", "..#..", "..#..", "..#..", "..#..", "#####"],
+    "2": [".###.", "#...#", "....#", "...#.", "..#..", ".#...", "#####"],
+    "3": ["####.", "....#", "....#", ".###.", "....#", "....#", "####."],
+    "4": ["#...#", "#...#", "#...#", "#####", "....#", "....#", "....#"],
+    "5": ["#####", "#....", "####.", "....#", "....#", "#...#", ".###."],
+    "6": [".###.", "#....", "#....", "####.", "#...#", "#...#", ".###."],
+    "7": ["#####", "....#", "...#.", "..#..", ".#...", ".#...", ".#..."],
+    "8": [".###.", "#...#", "#...#", ".###.", "#...#", "#...#", ".###."],
+    "9": [".###.", "#...#", "#...#", ".####", "....#", "....#", ".###."],
+    " ": [".....", ".....", ".....", ".....", ".....", ".....", "....."],
+    "!": ["..#..", "..#..", "..#..", "..#..", "..#..", ".....", "..#.."],
+    ".": [".....", ".....", ".....", ".....", ".....", ".....", "..#.."],
+    "-": [".....", ".....", ".....", "#####", ".....", ".....", "....."],
+    "'": ["..#..", "..#..", ".....", ".....", ".....", ".....", "....."],
+    "?": [".###.", "#...#", "....#", "..##.", "..#..", ".....", "..#.."],
+}
+_LETTER_ARR = {k: np.array([[c == "#" for c in row] for row in v])
+               for k, v in _LETTERS.items()}
+
+LYRICS = []
+if LYRICS_PATH and os.path.exists(LYRICS_PATH):
+    try:
+        LYRICS = json.load(open(LYRICS_PATH, encoding="utf-8"))
+    except Exception:
+        LYRICS = []
+
+
+def draw_text(luma, text, scale=3, margin=70):
+    """Draw uppercase *text* centred near the bottom of the clip (white)."""
+    text = text.upper()
+    gw, gh, gap = 5, 7, 1
+    width = len(text) * (gw + gap) * scale - gap * scale
+    x = (GW - width) // 2
+    y = GH - margin
+    for ch in text:
+        glyph = _LETTER_ARR.get(ch, _LETTER_ARR[" "])
+        for gy in range(gh):
+            for gx in range(gw):
+                if glyph[gy, gx]:
+                    luma[y + gy * scale:y + (gy + 1) * scale,
+                         x + gx * scale:x + (gx + 1) * scale] = 65535
+        x += (gw + gap) * scale
+
 
 # ---------------------------------------------------------------------------
 # GLSL shader (mpv/libplacebo syntax; `frame` + `random` provided by vs-placebo)
@@ -102,8 +182,6 @@ vec4 hook(){
     float seg = 8.0;
     float ka = abs(mod(ang, 6.28318/seg) - 3.14159/seg);
 
-    float lum = HOOKED_tex(HOOKED_pos).x;                     // girl edges
-
     float rings = smoothstep(0.86, 1.0, sin(1.0/(r+0.12)*3.0 - t*3.0 + bass*6.0));
     float spokes = 0.0;
     for(int i=0;i<8;i++){
@@ -111,17 +189,17 @@ vec4 hook(){
     }
     float grid = smoothstep(0.90, 1.0, abs(fract(uv.x*12.0 + t*0.15)-0.5)*2.0);
 
-    float col = lum*1.05;
-    col += lum*kick*0.9;                                      // edges flash on kick
-    col += rings*0.16 + spokes*0.14 + grid*0.05;
-    col += exp(-9.0*r) * (0.05 + kick*0.18);
+    vec3 src = HOOKED_tex(HOOKED_pos).rgb;                    // picture (chroma kept)
+    float glow = rings*0.16 + spokes*0.14 + grid*0.05
+               + exp(-9.0*r)*(0.05 + kick*0.18);
+    vec3 col = src * (1.02 + kick*0.9) + vec3(glow);
     col *= 1.0 - 0.42*r;                                      // vignette
     col *= 0.92 + 0.08*sin(HOOKED_pos.y*res.y*1.5708);        // scanline
     col += (random - 0.5)*0.03;                               // film grain
     if(step(0.78, kick) > 0.5){
         col = col*1.35 + (hash(floor(t*30.0)) - 0.5)*0.15;    // kick glitch
     }
-    return vec4(vec3(col), 1.0);
+    return vec4(col, 1.0);
 }
 """
 
@@ -238,12 +316,16 @@ NF = A["n_frames"]
 # ---------------------------------------------------------------------------
 # Main visual: the edge-detected dancing girl, looped on the beat grid
 # ---------------------------------------------------------------------------
-if os.path.exists(GIRL_FRAMES):
+if GIRL_SPRITES and os.path.exists(GIRL_SPRITES):
+    SPR = np.load(GIRL_SPRITES, mmap_mode="r")      # (N, GH, GW, 3) uint8
+    PIK = np.load(GIRL_PICK) if (GIRL_PICK and os.path.exists(GIRL_PICK)) else None
+    GIRL, GIRL_N = None, 0
+elif os.path.exists(GIRL_FRAMES):
+    SPR, PIK = None, None
     GIRL = np.load(GIRL_FRAMES, mmap_mode="r")      # (N, GH, GW) uint8
     GIRL_N = GIRL.shape[0]
 else:
-    GIRL = None
-    GIRL_N = 0
+    SPR, PIK, GIRL, GIRL_N = None, None, None, 0
 
 # ---------------------------------------------------------------------------
 # Fallback: ASCII art of the images in ascii/ (only if there is no girl stack)
@@ -286,11 +368,29 @@ _RNG = np.random.default_rng(7)
 _SPLATTER = 0.015                            # fresh paint flecks per frame
 
 
+def _neutral_chroma(fc):
+    """Set both chroma planes to neutral (128) so the colour-preserving shader
+    keeps a greyscale picture grey."""
+    plane_u16(fc, 1)[:] = 128 * 257
+    plane_u16(fc, 2)[:] = 128 * 257
+
+
 def build_data(n, f):
     fc = f.copy()
     luma = plane_u16(fc, 0)
     i = _FILL if STATIC else min(n, NF - 1)
-    if GIRL is not None:
+    if SPR is not None:
+        # Outline look: a colour sprite (white outline + blue-keyed hair) chosen
+        # per frame; write Y/U/V so the chroma survives the shader.
+        idx = int(PIK[i]) if PIK is not None else (i % SPR.shape[0])
+        rgb = np.asarray(SPR[idx], np.float32)
+        y = 0.299 * rgb[..., 0] + 0.587 * rgb[..., 1] + 0.114 * rgb[..., 2]
+        luma[:] = np.clip(y, 0, 255).astype(np.uint16) * 257
+        plane_u16(fc, 1)[:] = (np.clip(128.0 + (rgb[..., 2] - y) * 0.564, 0, 255)
+                               .astype(np.uint16) * 257)
+        plane_u16(fc, 2)[:] = (np.clip(128.0 + (rgb[..., 0] - y) * 0.713, 0, 255)
+                               .astype(np.uint16) * 257)
+    elif GIRL is not None:
         stroke = np.asarray(GIRL[i % GIRL_N], np.float32)
         if STATIC or not POLLOCK:
             canvas = stroke
@@ -304,6 +404,7 @@ def build_data(n, f):
             speckle = (_RNG.random((GH, GW)) < _SPLATTER).astype(np.float32) * 255.0
             canvas = np.maximum(canvas, speckle)
         luma[:] = np.clip(canvas, 0, 255).astype(np.uint16) * 257
+        _neutral_chroma(fc)
     else:
         blk = min(int((i / FPS) / IMG_PERIOD), N_IMG_BLOCKS - 1)
         small = render_ascii(_grids[int(_picks[blk])]) if _grids else _blank
@@ -312,6 +413,13 @@ def build_data(n, f):
         ys = (np.arange(GH) * (H // GH)).astype(int)
         xs = (np.arange(GW) * (W // GW)).astype(int)
         luma[:] = small[np.ix_(ys, xs)].astype(np.uint16) * 257
+        _neutral_chroma(fc)
+    if LYRICS:
+        t_now = i / FPS
+        for text, start in LYRICS:
+            if start <= t_now < start + LYRIC_DUR:
+                draw_text(luma, text)
+                break
     vals = np.concatenate([A["level"][i], [A["bass"][i], A["kick"][i],
                                           A["energy"][i]]]).astype(np.float32)
     for k, v in enumerate(vals):

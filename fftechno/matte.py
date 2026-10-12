@@ -57,13 +57,23 @@ class RVMMatte(MatteModel):
         return out[1][0, 0]
 
 
+def dilate(mask: np.ndarray, k: int) -> np.ndarray:
+    """Binary dilation by *k* pixels (4-connected, no wraparound)."""
+    out = mask
+    for _ in range(k):
+        p = np.pad(out, 1, mode="constant", constant_values=False)
+        out = (p[1:-1, 1:-1] | p[:-2, 1:-1] | p[2:, 1:-1]
+               | p[1:-1, :-2] | p[1:-1, 2:])
+    return out
+
+
 def largest_component(mask: np.ndarray, down: int = 8, frac: float = 0.5,
-                      dilate: int = 6) -> np.ndarray:
+                      dilate_px: int = 6) -> np.ndarray:
     """Return a boolean mask of the largest connected blob of *mask*.
 
     Labelling is done on a ``down``-times block-reduced copy (any-block mean
     ``>= frac``) so it is fast; the winning blob is then scaled back up and
-    dilated by *dilate* pixels to keep soft edges.
+    dilated by *dilate_px* pixels to keep soft edges.
     """
     h, w = mask.shape
     sh, sw = (h + down - 1) // down, (w + down - 1) // down
@@ -94,8 +104,4 @@ def largest_component(mask: np.ndarray, down: int = 8, frac: float = 0.5,
                 best_size, best_label = size, current
 
     big = np.repeat(np.repeat(labels == best_label, down, 0), down, 1)[:h, :w]
-    keep = big.copy()
-    for _ in range(dilate):
-        keep = (keep | np.roll(keep, 1, 0) | np.roll(keep, -1, 0)
-                | np.roll(keep, 1, 1) | np.roll(keep, -1, 1))
-    return keep
+    return dilate(big, dilate_px)
