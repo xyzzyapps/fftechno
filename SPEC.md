@@ -1,27 +1,31 @@
 # SPEC.md - fftechno (SRS)
 
-Technical specification of **fftechno**: a four-minute hardgroove techno track plus
-a black-and-white dancing-girl music video. Every sound is synthesized by **ffmpeg**; the
-build tooling is pure Python. The arrangement and every instrument parameter live
-in markdown, and the build is reproducible.
+Technical specification of **fftechno**: a four-minute underground techno track
+(currently a 155 BPM "Basement"-style jungle-techno tune; an earlier hardgroove
+track is in git history) plus a black-and-white dancing-girl music video. Every
+sound is synthesized by **ffmpeg** (the voice by a local neural TTS); the build
+tooling is Python. The arrangement and every instrument parameter live in
+markdown.
 
 ---
 
 ## 1. Purpose and scope
 
 Produce a fixed-length techno track and a video, driven by two markdown files, using
-only `ffmpeg` for sound. Porting the original hand-authored track to markdown must
-be **lossless**: substituting the recorded parameter values into the templates must
-reproduce the original ffmpeg filter graphs (verified by rendering comparison).
+`ffmpeg` for sound. The original hardgroove port to markdown was **lossless**
+(substituting the recorded parameter values reproduces the original ffmpeg filter
+graphs, verified by rendering comparison).
 
-The video's main visual is a **black-and-white, edge-detected dancing girl**, cut
-out of the source clip with Robust Video Matting (RVM, ONNX), edge-detected, and
-looped on the beat grid. The voice stem is synthesised with a local neural TTS -
-**Kitten TTS** (`kittenml`) by default, or **Piper** - both offline.
+The video's main visual is a black-and-white dancing girl, drawn as a white
+**silhouette outline** with the **blue hair chroma-keyed** from the source and cut
+to random stills on the beat (the `outline` look). Two other looks share the same
+pipeline: `edge` (an RVM-matted white line drawing) and `pollock` (an all-over
+abstract painting from whole-frame edges). The voice is synthesised with a local
+neural TTS - **Kitten TTS** (`kittenml`) by default, or **Piper** - both offline.
 
 In scope: `aevalsrc`-based synthesis, drum/gate patterns, mix automation, side-chain,
-convolution reverb, two-pass loudness mastering, an RVM + `edgedetect` video, and a
-reproducible build.
+convolution reverb, two-pass loudness mastering, an RVM / `edgedetect` / silhouette
+video with on-screen lyrics, and a reproducible build.
 
 Out of scope: real-time performance, a GUI, MIDI import, sample playback.
 
@@ -54,7 +58,7 @@ Derived: `beat = 60/155 = 0.387097 s`, `step (16th) = 0.096774 s`,
       |                                        |
       |  arrangement.py                        |  synth.py
       v                                        v
-  mix filtergraph  (output/logs/mix.txt)   filters/<name>.txt   (12 graphs)
+  mix filtergraph  (output/logs/mix.txt)   filters/<name>.txt   (17 graphs)
       |                                        |
       |                                        |  audio.render_stems()
       |                                        v
@@ -66,9 +70,9 @@ Derived: `beat = 60/155 = 0.387097 s`, `step (16th) = 0.096774 s`,
                            v
               master (2-pass loudnorm)  ->  output/techno.wav
                            v
-              ascii/*.mp4 -> RVM matte -> edgedetect -> beat-locked loop
+              ascii/*.mp4 -> look (outline|edge|pollock) -> beat-synced data
                            v
-              output/girl_loop.mp4  +  output/girl_frames.npy
+              output/girl_loop.mp4  +  girl_frames.npy  /  girl_sprites.npy+girl_pick.npy
                            v
               vspipe visualizer.vpy  ->  ffmpeg  ->  output/techno_visualizer.mp4
 ```
@@ -80,10 +84,10 @@ Commands (`python -m fftechno ...`):
 | Command | Phases |
 |---------|--------|
 | `synth` | `sounds.md` + `templates/` -> `filters/<name>.txt` |
-| `audio` | `synth` -> IR -> vocals -> stems -> mix -> master -> `techno.wav` |
+| `audio [--safe] [--tts kitten\|piper]` | `synth` -> IR -> vocals -> stems -> mix -> master -> `techno.wav` |
 | `girl [--look edge\|pollock\|outline] [--mode reset\|trail\|build]` | source clip -> look -> `girl_loop.mp4` + frame data |
 | `video [--look ..] [--mode ..] [--boost F] [--static]` | `girl` -> render -> mux -> 720p preview -> optional re-level |
-| `all [--look ..] [--mode ..] [--boost F] [--static]` | `audio`, then `girl`, then `video` |
+| `all [--look ..] [--mode ..] [--safe] [--tts ..] [--boost F] [--static]` | `audio`, then `girl`, then `video` |
 | `boost F` | re-encode the MP4 audio at gain `F` (video copied) |
 
 Filtergraphs are read from files with the ffmpeg 9 syntax `-/filter_complex FILE`
@@ -101,11 +105,11 @@ message.
 Scalars (all required):
 
 ```
-bpm: 140
-bars: 140
+bpm: 155
+bars: 155
 fade_bars: 7            # the final section fades to silence over this many bars
 sidechain_key: kick     # which stem drives the ducking
-low_bus: bass|growl     # stems grouped and ducked under the key
+low_bus: reese          # stems grouped and ducked under the key
 ```
 
 Tables (all required unless noted):
@@ -120,7 +124,7 @@ Tables (all required unless noted):
 - **Effects** - `| effect | value |`; `reverb_send`, `reverb_hpf`, `reverb_wet`,
   `sidechain_threshold/ratio/attack/release`, `stereo_width`,
   `bus_threshold/ratio/attack/release`.
-- **Levels** - `| stem | level |`; fixed level for non-arranged stems (vox, beeps).
+- **Levels** - `| stem | level |`; fixed level for non-arranged stems (vox).
 
 Rules: section ranges are contiguous; the last row's end equals `bars`; every stem
 has a `Pan` row; `low_bus` stems must be in `Stems`. Missing entries raise.
@@ -144,7 +148,7 @@ placeholder fails loudly.
 
 ## 8. Instruments
 
-Sixteen instruments, all parameterised (values in `sounds.md`):
+Seventeen instruments, all parameterised (values in `sounds.md`):
 
 | Instrument | Template | Highlights |
 |------------|----------|------------|
@@ -212,7 +216,7 @@ With `--safe` (off by default) a second, stricter `alimiter` (`limit=0.5`, about
 
 ## 11. Output format
 
-`output/techno.wav`: pcm_s16le, 48 kHz, 2 channels, 240.055 s, -13.0 LUFS,
+`output/techno.wav`: pcm_s16le, 48 kHz, 2 channels, 240.000 s, -13.0 LUFS,
 true peak -1.0 dBFS.
 
 ## 12. Video - `visualizer.vpy`
@@ -281,18 +285,20 @@ uppercase bitmap font - no font file, no libass/fontconfig.
 
 | Check | Method | Result |
 |-------|--------|--------|
-| Template losslessness | render each stem vs its original, compare | <= -213 dB (float noise) |
+| Template losslessness (hardgroove port) | render each stem vs its original | <= -213 dB (float noise) |
 | Filter graphs valid | `ffmpeg -/filter_complex` per stem | clean |
 | Loudness | `ebur128` | -13.0 LUFS |
 | True peak | `ebur128=peak=true` | -1.0 dBFS |
-| Whole track | `techno.wav` vs reference build | byte-identical (SHA256 match) |
-| Reproducible | rebuild, compare | identical |
+| Safe mode | `ebur128` with `--safe` | true peak about -6 dBFS |
+| Video | `ffprobe` + spot frames | 1920x1080, 30 fps, lyrics on time |
+| Determinism | rebuild the ffmpeg stems | identical |
 
 ## 14. Reproducibility
 
 `python -m fftechno audio` regenerates `filters/*.txt`, the stems, the mix and the
-master from markdown alone. The reference track reproduces **byte-for-byte**; the
-build lock guarantees a single writer.
+master from markdown alone. The ffmpeg synthesis is deterministic for a fixed
+build; the neural-TTS voice is deterministic for a given model. The build lock
+guarantees a single writer.
 
 ## 15. Requirements and environment
 
@@ -303,7 +309,8 @@ build lock guarantees a single writer.
   (`eval=frame`). Video filters: `edgedetect`, `format`, `fps`, `scale`,
   `pad`. Filtergraphs are read from files with `-/filter_complex FILE`
   (`-filter_complex_script` was removed in ffmpeg 8/9).
-- Python 3.10+ (the audio tooling uses only the standard library).
+- Python 3.10+ (most tooling is the standard library; the video needs the venv
+  above and the voice needs `kittenml` or Piper).
 - Video: venv with `vapoursynth`, `numpy`, `vs-placebo` (`vspipe`) and a Vulkan GPU.
   Run `.venv\Scripts\python -m vapoursynth config` once (the `Scripts\vapoursynth`
   launcher needs a configured shell).
@@ -345,15 +352,17 @@ build lock guarantees a single writer.
 
 ```
 song.md sounds.md            control surfaces
-templates/*.txt              synth schematics (12 templates incl. conga)
+templates/*.txt              synth schematics (16 used by 17 instruments; some legacy ones remain)
 filters/*.txt                generated graphs + vox.txt
 fftechno/                    config, proc (build lock), audio, synth,
                              arrangement, vox, girl, matte, video, cli
 visualizer.vpy               the video
-pyproject.toml LICENSE.md README.md SPEC.md TODO.md
+pyproject.toml LICENSE.md README.md SPEC.md TODO.md CHANGELOG.md
 output/                      techno*.wav, techno_visualizer*.mp4,
-                             girl_loop*.mp4, girl_frames.npy, stems/, logs/
-tools/ ascii/                RVM model + the source clip
+                             girl_loop*.mp4, girl_frames.npy,
+                             girl_sprites.npy, girl_pick.npy, lyrics.json,
+                             stems/, logs/
+tools/ ascii/                RVM + voice models + the source clip
 ```
 
 ## 19. Risks and limitations
