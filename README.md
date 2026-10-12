@@ -131,8 +131,9 @@ silent. `gates` are 16 steps per bar - one bar of 16th notes.
 
 `audio`/`all` also take **`--safe`** (off by default): it adds an extra
 ear-protection limiter so the master can't exceed a conservative ceiling - useful
-for headphones. The voice (`flite`) and the burned-in lyrics come from
-`config.VOX_LINES`, so the sound and the on-screen text always agree.
+for headphones. The voice (a local neural TTS - Kitten TTS by default, or Piper)
+and the burned-in lyrics come from `config.VOX_LINES`, so the sound and the
+on-screen text always agree.
 
 `girl`, `video` and `all` also take `--look edge|pollock|outline` (default
 `pollock`) and, for the Pollock look, `--mode reset|trail|build` (how the paint
@@ -165,7 +166,8 @@ tools/             the RVM matting model (optional, see Quick start)
 - For the video: the venv above (VapourSynth, numpy, vs-placebo) and a Vulkan GPU.
 - For isolating the girl: `onnxruntime` plus the Robust Video Matting model in
   `tools/rvm/` (see Quick start).
-- The voice is ffmpeg's built-in `flite` filter - no external TTS binary needed.
+- The voice uses a local neural TTS - **Kitten TTS** (default, `kittenml`) or
+  **Piper** (`tools/piper`). Both run offline; pick with `--tts kitten|piper`.
 
 ## Reproducibility
 

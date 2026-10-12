@@ -89,16 +89,17 @@ def master(safe: bool = False) -> Path:
     return out
 
 
-def build(safe: bool = False) -> Path:
+def build(safe: bool = False, tts: str | None = None) -> Path:
     """Full audio pipeline: synth defs + IR + vocals + stems -> mix -> master.
 
-    ``safe=True`` adds the ear-protection limiter. Returns the mastered WAV path."""
+    ``safe=True`` adds the ear-protection limiter; ``tts`` selects the vocal
+    engine ("kitten" or "piper"). Returns the mastered WAV path."""
     from . import synth, vox  # imported here so audio-only paths stay light
 
     names = synth.generate()        # sounds.md + templates -> filters/<name>.txt
     make_ir()
     if "vox" in arrangement.parse(C.SONG).stems:
-        vox.render()
+        vox.render(engine=tts)
     render_stems(names)
     mix()
     return master(safe=safe)

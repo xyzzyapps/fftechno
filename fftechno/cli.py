@@ -41,6 +41,8 @@ def main(argv: list[str] | None = None) -> None:
     aud = sub.add_parser("audio", help="stems -> mix -> master (output/techno.wav)")
     aud.add_argument("--safe", action="store_true",
                      help="apply the extra ear-protection limiter (off by default)")
+    aud.add_argument("--tts", choices=("kitten", "piper"), default=C.VOX_ENGINE,
+                     help="vocal TTS engine (default: %(default)s)")
 
     girl = sub.add_parser("girl", help="build the B/W dancing-girl loop")
     _add_look(girl)
@@ -56,6 +58,8 @@ def main(argv: list[str] | None = None) -> None:
     _add_look(both)
     both.add_argument("--safe", action="store_true",
                       help="apply the ear-protection limiter")
+    both.add_argument("--tts", choices=("kitten", "piper"), default=C.VOX_ENGINE,
+                      help="vocal TTS engine (default: %(default)s)")
     both.add_argument("--boost", type=float, default=1.0)
     both.add_argument("--static", action="store_true",
                       help="render a single frozen frame (skip animation)")
@@ -71,7 +75,7 @@ def main(argv: list[str] | None = None) -> None:
 
     with build_lock(C.LOCK):
         if args.command == "audio":
-            print(f"audio: {audio.build(safe=args.safe)}")
+            print(f"audio: {audio.build(safe=args.safe, tts=args.tts)}")
         elif args.command == "girl":
             loop, frames = _girl().build(look=args.look, mode=args.mode)
             print(f"girl loop: {loop}")
@@ -81,7 +85,7 @@ def main(argv: list[str] | None = None) -> None:
             video.build(audio=_latest(C.AUDIO), look=args.look, mode=args.mode,
                         boost=args.boost, static=args.static)
         elif args.command == "all":
-            wav = audio.build(safe=args.safe)
+            wav = audio.build(safe=args.safe, tts=args.tts)
             print(f"audio: {wav}")
             loop, _frames = _girl().build(look=args.look, mode=args.mode)
             print(f"girl loop: {loop}")

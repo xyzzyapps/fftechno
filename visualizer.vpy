@@ -1,23 +1,27 @@
 """visualizer.vpy - VapourSynth + GLSL dancing-girl visualizer.
 
-The main visual is a black-and-white, edge-detected dancing girl: `fftechno
-girl` mattes the source clip (RVM), composites her over black and edge-detects
-the result, producing a compact frame stack (``output/girl_frames.npy``) whose
-length is a whole number of beats. This script loops that stack across the whole
-track (``output/techno.wav``) and a GPU GLSL shader (vs-placebo) adds a subtle
-monochrome Berlin overlay (hypnotic rings, audio spokes, grid, grain) plus a
-kick-synced brightness punch.
+The main visual is the dancing girl, drawn by ``fftechno girl`` as one of three
+"looks" (``--look``):
 
-If ``girl_frames.npy`` is missing it falls back to the original ASCII art of the
-images in ``ascii/``.
+* ``outline`` - only the silhouette contour in white plus the blue hair
+  (chroma-keyed), cut to random stills on the beat;
+* ``edge`` - a clean white line drawing of the matted subject;
+* ``pollock`` - an all-over abstract "painting" from whole-frame edges.
+
+This script writes that per-frame data into a low-res YUV444P16 clip (the picture
+in Y/U/V, an audio data strip in the top rows), upscales to 1920x1080, and runs a
+GPU GLSL shader (vs-placebo) that keeps the colour, applies a kick-synced
+brightness punch plus a light vignette and grain (no drawn overlay), and masks the
+strip rows black. ``output/lyrics.json`` (from ``config.VOX_LINES``) is drawn with
+a self-contained 5x7 bitmap font.
 
 Pipeline
 --------
 1. Analyse the mastered WAV (64 bands + bass + kick + energy).
-2. Per frame: write the edge-detected girl frame into the luma plane and the
-   audio data strip into the top rows of a low-res YUV444P16 clip.
-3. Upscale to 1920x1080; ``core.placebo.Shader`` reads the girl (``HOOKED_tex``),
-   the strip (audio reactivity) and ``frame`` (time) and draws the B/W overlay.
+2. Per frame: write the picture (grey luma, or RGB -> YUV for the outline sprites)
+   and the audio data strip into the top rows of a low-res YUV444P16 clip.
+3. Upscale to 1920x1080; ``core.placebo.Shader`` shades it and the lyric for the
+   current time is drawn.
 4. Convert to YUV420P8 for y4m piping.
 
 Run:  .venv\\Scripts\\vspipe.exe -c y4m visualizer.vpy - | ffmpeg -f yuv4mpegpipe -i - ...
@@ -159,7 +163,7 @@ def draw_text(luma, text, scale=3, margin=70):
 SHADER = """
 //!HOOK MAIN
 //!BIND HOOKED
-//!DESC girl bw berlin
+//!DESC girl outline (no overlay)
 
 #define FPS 30.0
 
@@ -174,30 +178,17 @@ vec4 hook(){
     // The top rows of HOOKED hold the audio data strip, not picture - hide it.
     if (HOOKED_pos.y < 9.0/1080.0) return vec4(0.0, 0.0, 0.0, 1.0);
     float t = float(frame)/FPS;
-    float bass = aux(0.0), kick = aux(1.0), energy = aux(2.0);
+    float kick = aux(1.0);
     vec2 res = target_size;
     vec2 uv = (HOOKED_pos*res - 0.5*res)/res.y;
     float r = length(uv);
-    float ang = atan(uv.y, uv.x) + t*0.10;
-    float seg = 8.0;
-    float ka = abs(mod(ang, 6.28318/seg) - 3.14159/seg);
 
-    float rings = smoothstep(0.86, 1.0, sin(1.0/(r+0.12)*3.0 - t*3.0 + bass*6.0));
-    float spokes = 0.0;
-    for(int i=0;i<8;i++){
-        spokes += band(float(i)*8.0) * exp(-22.0*abs(ka - 0.12*float(i)));
-    }
-    float grid = smoothstep(0.90, 1.0, abs(fract(uv.x*12.0 + t*0.15)-0.5)*2.0);
-
-    vec3 src = HOOKED_tex(HOOKED_pos).rgb;                    // picture (chroma kept)
-    float glow = rings*0.16 + spokes*0.14 + grid*0.05
-               + exp(-9.0*r)*(0.05 + kick*0.18);
-    vec3 col = src * (1.02 + kick*0.9) + vec3(glow);
-    col *= 1.0 - 0.42*r;                                      // vignette
-    col *= 0.92 + 0.08*sin(HOOKED_pos.y*res.y*1.5708);        // scanline
+    vec3 src = HOOKED_tex(HOOKED_pos).rgb;                    // the girl (chroma kept)
+    vec3 col = src * (1.02 + kick*0.9);                       // edges flash on kick
+    col *= 1.0 - 0.35*r;                                      // gentle vignette
     col += (random - 0.5)*0.03;                               // film grain
     if(step(0.78, kick) > 0.5){
-        col = col*1.35 + (hash(floor(t*30.0)) - 0.5)*0.15;    // kick glitch
+        col = col*1.30 + (hash(floor(t*30.0)) - 0.5)*0.12;    // kick glitch
     }
     return vec4(col, 1.0);
 }

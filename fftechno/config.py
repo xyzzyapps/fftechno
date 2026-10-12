@@ -87,7 +87,18 @@ VOX_LINES = (
     ("know thyself", 128 * _VOX_BAR),
     ("rise up", 145 * _VOX_BAR),
 )
-VOX_VOICE = "slt"           # flite female voice (16 kHz mono output)
+PIPER = TOOLS / "piper" / "piper.exe"
+PIPER_VOICE = TOOLS / "piper" / "voices" / "en_US-amy-medium.onnx"
+
+# --- TTS engine for the vocals: "kitten" or "piper" (both local, no cloud) --
+VOX_ENGINE = "kitten"
+KITTEN_MODEL = "KittenML/kitten-tts-nano-0.8"
+KITTEN_VOICE = "Luna"           # Bella/Luna/Rosie/Kiki (f), Jasper/Bruno/Hugo/Leo (m)
+KITTEN_SPEED = 1.15
+KITTEN_CACHE = str(TOOLS / "kitten")
+KITTEN_SR = 24000
+PIPER_SR = 22050
+
 LYRICS = OUTPUT / "lyrics.json"        # written by vox; read by the visualizer
 
 # --- ear protection (OFF by default; opt in with --safe) -------------------

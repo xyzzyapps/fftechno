@@ -162,75 +162,6 @@ def _blue_mask(rgb: np.ndarray) -> np.ndarray:
     return (b > 70) & (b - r > 25) & (b - g > 15)
 
 
-def _largest_blob(mask: np.ndarray) -> np.ndarray:
-    """Boolean mask of the largest 4-connected blob (fine; small inputs only)."""
-    h, w = mask.shape
-    labels = np.zeros((h, w), np.int32)
-    current = 0
-    best_size, best_label = 0, 0
-    for yy in range(h):
-        for xx in range(w):
-            if not mask[yy, xx] or labels[yy, xx]:
-                continue
-            current += 1
-            size = 0
-            stack = [(yy, xx)]
-            labels[yy, xx] = current
-            while stack:
-                cy, cx = stack.pop()
-                size += 1
-                for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
-                    ny, nx = cy + dy, cx + dx
-                    if 0 <= ny < h and 0 <= nx < w and mask[ny, nx] and not labels[ny, nx]:
-                        labels[ny, nx] = current
-                        stack.append((ny, nx))
-            if size > best_size:
-                best_size, best_label = size, current
-    return labels == best_label
-
-
-def _eye_outline(frame: np.ndarray, subj: np.ndarray) -> np.ndarray | None:
-    """Outline the eyes from the source: head box -> eye band -> darkest blobs.
-
-    No ML: the head is the top of the subject, the eye band is a fixed fraction
-    of it, and the eyes are the darkest blobs in the central face area."""
-    h, w = subj.shape
-    rows = np.where(subj.any(axis=1))[0]
-    if rows.size == 0:
-        return None
-    y0, y1 = int(rows[0]), int(rows[-1])
-    head = max(24, int(0.26 * (y1 - y0)))
-    ya = y0 + int(0.40 * head)
-    yb = y0 + int(0.64 * head)
-    if yb - ya < 6:
-        return None
-    band = subj[ya:yb]
-    cols = np.where(band.any(axis=0))[0]
-    if cols.size < 10:
-        return None
-    # Restrict to the central face (skip the hair on the sides).
-    cx0 = int(cols[0] + 0.22 * (cols[-1] - cols[0]))
-    cx1 = int(cols[0] + 0.78 * (cols[-1] - cols[0]))
-    face = np.zeros_like(band)
-    face[:, cx0:cx1] = True
-    lum = frame[ya:yb].mean(axis=2)
-    region = band & face
-    if region.sum() < 12:
-        return None
-    dark = region & (lum <= np.percentile(lum[region], 33))
-    mid = (cx0 + cx1) // 2
-    eyes = np.zeros_like(dark)
-    for lo, hi in ((cx0, mid), (mid, cx1)):
-        half = dark[:, lo:hi]
-        if half.sum() >= 3:
-            eyes[:, lo:hi] = _largest_blob(half)
-    if eyes.sum() == 0:
-        return None
-    out = np.zeros((h, w), bool)
-    out[ya:yb] = _expand(eyes, 2) & ~_expand(eyes, 1)     # a visible 2px ring
-    return out
-
-
 def _outline_sprites(frames: np.ndarray) -> np.ndarray:
     """Per-source-frame sprite: white silhouette outline + blue-keyed hair."""
     from .matte import RVMMatte, largest_component
@@ -250,9 +181,6 @@ def _outline_sprites(frames: np.ndarray) -> np.ndarray:
         sprite = sprites[i]
         sprite[outline] = 255
         sprite[hair] = np.clip(frame[hair].astype(np.int16) * 1.15, 0, 255).astype(np.uint8)
-        eyes = _eye_outline(frame, subj)
-        if eyes is not None:
-            sprite[eyes] = 255
     return sprites
 
 

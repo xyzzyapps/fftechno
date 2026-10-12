@@ -16,8 +16,8 @@ reproduce the original ffmpeg filter graphs (verified by rendering comparison).
 
 The video's main visual is a **black-and-white, edge-detected dancing girl**, cut
 out of the source clip with Robust Video Matting (RVM, ONNX), edge-detected, and
-looped on the beat grid. The voice stem is synthesised with ffmpeg's built-in
-`flite` filter (no external TTS).
+looped on the beat grid. The voice stem is synthesised with a local neural TTS -
+**Kitten TTS** (`kittenml`) by default, or **Piper** - both offline.
 
 In scope: `aevalsrc`-based synthesis, drum/gate patterns, mix automation, side-chain,
 convolution reverb, two-pass loudness mastering, an RVM + `edgedetect` video, and a
@@ -159,7 +159,7 @@ Sixteen instruments, all parameterised (values in `sounds.md`):
 | breakbeat | breakbeat.txt | kick + snare + hat `kgates/sgates/hgates`, `chop_*` stutter |
 | shaker | shaker.txt | `decay, hp, gates` |
 | conga | conga.txt | tuned hand drum: `pitches, gates, slap`, `sweep, rate, decay, hp, lpc, aecho` |
-| reese | reese.txt | square + detune + sub through a resonant 24 dB LP, `beatgrid` notes |
+| reese | reese.txt | square + detune + sub through a resonant 24 dB LP; `beatgrid` notes |
 | acid | acid.txt | 303: `notes, accents, bends, gates`; filter crossfade + resonant peak |
 | lead_pwm | lead_pwm.txt | unison PWM pulse lead, `notes, gates` |
 | lead_fm | lead_fm.txt | 2-op FM lead, `notes, gates`, `aphaser` |
@@ -167,9 +167,9 @@ Sixteen instruments, all parameterised (values in `sounds.md`):
 | stab | stab.txt | short detuned chord stab (`n1/n2/n3, gates`) |
 
 The **vox** stem is not a template: `fftechno/vox.py` synthesizes short phrases
-with ffmpeg's built-in `flite` and places them via `filters/vox.txt`; the same
-`config.VOX_LINES` times are written to `output/lyrics.json` for the on-screen
-lyrics.
+with a local neural TTS (Kitten TTS via `kittenml`, or Piper) and places them via
+`filters/vox.txt`; the same `config.VOX_LINES` times are written to
+`output/lyrics.json` for the on-screen lyrics.
 
 **Losslessness.** The generated graphs reproduce the original hand-authored
 expressions value-for-value (verified: rendering each stem against its original
@@ -221,9 +221,9 @@ VapourSynth + vs-placebo. The main visual is the dancing girl: a small piece of
 per-frame data is written into a low-res YUV444P16 clip (960x540), the audio data
 strip (64 bands + bass + kick + energy) into the top rows, and the clip is
 upscaled to 1920x1080. A GLSL shader reads the picture (`HOOKED_tex`), the strip
-and `frame` (time) and draws a subtle Berlin overlay plus a kick-synced brightness
-punch; it **preserves chroma** (so the blue hair stays blue) and masks the top
-strip rows black. Output is YUV420P8, piped to ffmpeg by `vspipe -c y4m`.
+and `frame` (time) and applies a kick-synced brightness punch plus a light
+vignette/grain (no overlay); it **preserves chroma** (so the blue hair stays blue)
+and masks the top strip rows black. Output is YUV420P8, piped to ffmpeg by `vspipe -c y4m`.
 `--static` renders a single frozen frame.
 
 Environment inputs: `FFTECHNO_AUDIO` (the mastered WAV), `FFTECHNO_GIRL_FRAMES`
@@ -265,14 +265,10 @@ splatter (never accumulated) each frame:
 ### 12.3 Outline look - beat-synced stills
 
 `outline` builds one RGB sprite per source frame (white silhouette contour + blue
-hair + an **eye outline** on black), then a per-output-frame index
-(`girl_pick.npy`) that picks a random sprite held for exactly one beat - the BPM
-is read from `song.md`, so the picture strobes in time with the track. The
-visualizer writes Y/U/V from the sprite so the colour survives the shader.
-
-The **eye outline** needs no ML: the head is the top of the mask, the eye band is
-a fixed fraction of it, and the eyes are the darkest blobs in the central face
-area (drawn as a dilated ring).
+hair on black), then a per-output-frame index (`girl_pick.npy`) that picks a
+random sprite held for exactly one beat - the BPM is read from `song.md`, so the
+picture strobes in time with the track. The visualizer writes Y/U/V from the
+sprite so the colour survives the shader.
 
 ### 12.4 On-screen lyrics
 
@@ -304,7 +300,7 @@ build lock guarantees a single writer.
   `asubboost`, `asoftclip`, `acrusher`, `equalizer`, `highpass`, `lowpass`, `asplit`,
   `amix`, `pan`, `haas`, `extrastereo`, `sidechaincompress`, `acompressor`,
   `alimiter`, `loudnorm`, `afir`, `aresample`, `aformat`, `adelay`, `apad`, `volume`
-  (`eval=frame`), `flite`. Video filters: `edgedetect`, `format`, `fps`, `scale`,
+  (`eval=frame`). Video filters: `edgedetect`, `format`, `fps`, `scale`,
   `pad`. Filtergraphs are read from files with `-/filter_complex FILE`
   (`-filter_complex_script` was removed in ffmpeg 8/9).
 - Python 3.10+ (the audio tooling uses only the standard library).
@@ -317,7 +313,12 @@ build lock guarantees a single writer.
   .venv\Scripts\pip install onnxruntime
   curl -L -o tools\rvm\rvm_mobilenetv3_fp32.onnx https://github.com/PeterL1n/RobustVideoMatting/releases/download/v1.0.0/rvm_mobilenetv3_fp32.onnx
   ```
-- Vocals: ffmpeg's built-in `flite` filter (voice `slt`); no external TTS binary.
+- Vocals: a local neural TTS (offline):
+  - **Kitten TTS** (default): `pip install kittenml soundfile huggingface_hub
+    phonemizer espeakng_loader` (no torch needed; the nano ONNX model is fetched
+    to `tools/kitten/`).
+  - **Piper**: unzip the Windows build into `tools/piper/` and put a voice
+    (`<name>.onnx` + `.onnx.json`) in `tools/piper/voices/`.
 
 ## 16. Troubleshooting / FAQ
 
@@ -338,7 +339,7 @@ build lock guarantees a single writer.
   `Sections` column.
 - **New step melody:** use `{{if_steps(seq; grid; default)}}` and a `\|` list.
 - **Mix effects:** the `Effects` table.
-- **Video:** edit `SHADER`, grid or palette in `visualizer.vpy`.
+- **Video:** edit `SHADER` in `visualizer.vpy`.
 
 ## 18. File inventory
 
