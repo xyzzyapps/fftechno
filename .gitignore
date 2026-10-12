@@ -9,6 +9,9 @@ output/logs/
 output/*.y4m
 output/stems/
 output/*.mp4
+output/_probe/
+output/girl_frames.npy
+output/techno_v*.wav
 /*.png
 /*.jpg
 /*.jpeg

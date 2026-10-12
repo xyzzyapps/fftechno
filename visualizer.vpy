@@ -1,22 +1,27 @@
-"""visualizer.vpy - VapourSynth + GLSL (vs-placebo) ASCII visualizer.
+"""visualizer.vpy - VapourSynth + GLSL dancing-girl visualizer.
 
-Black-and-white visual: every image in ``ascii/`` is converted to ASCII art with
-a self-contained numpy bitmap font (no external assets), played once through a
-shuffled playlist so each image is used at least ``REUSE`` times, and a
-Berlin-techno overlay (hypnotic rings, audio spokes, grid, scanlines, kick
-glitch, grain) is drawn over it in monochrome by a GPU GLSL shader.
+The main visual is a black-and-white, edge-detected dancing girl: `fftechno
+girl` mattes the source clip (RVM), composites her over black and edge-detects
+the result, producing a compact frame stack (``output/girl_frames.npy``) whose
+length is a whole number of beats. This script loops that stack across the whole
+track (``output/techno.wav``) and a GPU GLSL shader (vs-placebo) adds a subtle
+monochrome Berlin overlay (hypnotic rings, audio spokes, grid, grain) plus a
+kick-synced brightness punch.
+
+If ``girl_frames.npy`` is missing it falls back to the original ASCII art of the
+images in ``ascii/``.
 
 Pipeline
 --------
-1. Decode each image with ffmpeg -> 80x45 gray grid -> ASCII bitmap (cached).
-2. Per frame: write the ASCII frame into the luma plane and the audio data strip
-   (64 bands + bass + kick + energy) into the top rows of a YUV444P16 clip.
-3. ``core.placebo.Shader`` reads the ASCII (``HOOKED_tex``), the strip (audio
-   reactivity) and ``frame`` (time) and draws the B/W overlay.
+1. Analyse the mastered WAV (64 bands + bass + kick + energy).
+2. Per frame: write the edge-detected girl frame into the luma plane and the
+   audio data strip into the top rows of a low-res YUV444P16 clip.
+3. Upscale to 1920x1080; ``core.placebo.Shader`` reads the girl (``HOOKED_tex``),
+   the strip (audio reactivity) and ``frame`` (time) and draws the B/W overlay.
 4. Convert to YUV420P8 for y4m piping.
 
-Run:  .venv\\\\Scripts\\\\vspipe.exe -c y4m visualizer.vpy - | ffmpeg -f yuv4mpegpipe -i - ...
-Info: .venv\\\\Scripts\\\\vspipe.exe -i visualizer.vpy -
+Run:  .venv\\Scripts\\vspipe.exe -c y4m visualizer.vpy - | ffmpeg -f yuv4mpegpipe -i - ...
+Info: .venv\\Scripts\\vspipe.exe -i visualizer.vpy -
 """
 
 import ctypes
@@ -34,18 +39,20 @@ core = vs.core
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
-AUDIO_PATH = "output/techno.wav"
+AUDIO_PATH = os.environ.get("FFTECHNO_AUDIO", "output/techno.wav")
+GIRL_FRAMES = os.environ.get("FFTECHNO_GIRL_FRAMES", "output/girl_frames.npy")
 IMG_DIR = "ascii"
 # When set (vspipe sees FFTECHNO_STATIC=1) the output is a single frozen frame
 # repeated for the whole duration -> no animation.
 STATIC = os.environ.get("FFTECHNO_STATIC") == "1"
 W, H, FPS = 1920, 1080, 30
-NBARS = 64
-CELL = 24                           # strip pixels per value
-STRIP_ROWS = 4
-IMG_PERIOD = 60.0 / 140.0           # fallback image period if there are no images
+GW, GH = 960, 540                    # low-res clip the girl frames are drawn into
 
-GRID_W, GRID_H = 80, 45             # ascii cells
+NBARS = 64
+CELL = GW // NBARS                   # strip pixels per value (960/64 = 15)
+STRIP_ROWS = 4
+
+GRID_W, GRID_H = 80, 45             # ascii fallback cells
 CELL_W, CELL_H = W // GRID_W, H // GRID_H
 RAMP = " .:-=+*#%@"
 
@@ -70,16 +77,20 @@ _GLYPH_ARR = {k: np.array([[int(c) for c in row] for row in v], np.uint8)
 SHADER = """
 //!HOOK MAIN
 //!BIND HOOKED
-//!DESC ascii bw berlin
+//!DESC girl bw berlin
 
 #define FPS 30.0
 
-float strip(float idx){ return HOOKED_tex(vec2((idx*24.0+12.0)/1920.0, 1.5/1080.0)).x; }
+// The audio data strip lives in the top rows of HOOKED (64 values across the
+// width); sample it in normalised coordinates.
+float strip(float idx){ return HOOKED_tex(vec2((idx+0.5)/64.0, 2.0/1080.0)).x; }
 float band(float b){ return strip(b); }
 float aux(float i){ return strip(64.0+i); }
 float hash(float n){ return fract(sin(n)*43758.5453); }
 
 vec4 hook(){
+    // The top rows of HOOKED hold the audio data strip, not picture - hide it.
+    if (HOOKED_pos.y < 9.0/1080.0) return vec4(0.0, 0.0, 0.0, 1.0);
     float t = float(frame)/FPS;
     float bass = aux(0.0), kick = aux(1.0), energy = aux(2.0);
     vec2 res = target_size;
@@ -89,7 +100,7 @@ vec4 hook(){
     float seg = 8.0;
     float ka = abs(mod(ang, 6.28318/seg) - 3.14159/seg);
 
-    float lum = HOOKED_tex(HOOKED_pos).x;                     // ascii base
+    float lum = HOOKED_tex(HOOKED_pos).x;                     // girl edges
 
     float rings = smoothstep(0.86, 1.0, sin(1.0/(r+0.12)*3.0 - t*3.0 + bass*6.0));
     float spokes = 0.0;
@@ -98,13 +109,15 @@ vec4 hook(){
     }
     float grid = smoothstep(0.90, 1.0, abs(fract(uv.x*12.0 + t*0.15)-0.5)*2.0);
 
-    float col = lum*0.95 + rings*0.5 + spokes*0.45 + grid*0.18;
-    col += exp(-9.0*r) * (0.15 + kick*0.9);
-    col *= 1.0 - 0.6*r;
-    col *= 0.88 + 0.12*sin(HOOKED_pos.y*res.y*1.5708);
-    col += (random - 0.5)*0.06;
+    float col = lum*1.05;
+    col += lum*kick*0.9;                                      // edges flash on kick
+    col += rings*0.16 + spokes*0.14 + grid*0.05;
+    col += exp(-9.0*r) * (0.05 + kick*0.18);
+    col *= 1.0 - 0.42*r;                                      // vignette
+    col *= 0.92 + 0.08*sin(HOOKED_pos.y*res.y*1.5708);        // scanline
+    col += (random - 0.5)*0.045;                              // film grain
     if(step(0.78, kick) > 0.5){
-        col = col*1.5 + (hash(floor(t*30.0)) - 0.5)*0.3;
+        col = col*1.35 + (hash(floor(t*30.0)) - 0.5)*0.15;    // kick glitch
     }
     return vec4(vec3(col), 1.0);
 }
@@ -221,49 +234,64 @@ A = analyse(AUDIO_PATH)
 NF = A["n_frames"]
 
 # ---------------------------------------------------------------------------
-# ASCII frames: one random image per beat (rapid), rendered on demand + cached
+# Main visual: the edge-detected dancing girl, looped on the beat grid
 # ---------------------------------------------------------------------------
-_files = sorted(glob.glob(f"{IMG_DIR}/*.jpg")) + sorted(glob.glob(f"{IMG_DIR}/*.png"))
-_grids = [decode_gray(p) for p in _files] if _files else []
-N_IMGS = len(_files)
-REUSE = 3                              # every image must appear at least this often
-if N_IMGS:
-    # size the image period so at least REUSE*N_IMGS slots fit in the duration
-    IMG_PERIOD = A["duration"] / (REUSE * N_IMGS)
-N_IMG_BLOCKS = int(math.ceil(A["duration"] / IMG_PERIOD)) + 1
-_rng = np.random.default_rng(20261010)
-if N_IMGS:
-    _playlist = list(range(N_IMGS)) * REUSE
-    _rng.shuffle(_playlist)
-    while len(_playlist) < N_IMG_BLOCKS:
-        _playlist.append(int(_rng.integers(0, N_IMGS)))
-    _picks = np.array(_playlist[:N_IMG_BLOCKS], dtype=int)
+if os.path.exists(GIRL_FRAMES):
+    GIRL = np.load(GIRL_FRAMES, mmap_mode="r")      # (N, GH, GW) uint8
+    GIRL_N = GIRL.shape[0]
 else:
-    _picks = np.zeros(N_IMG_BLOCKS, dtype=int)
-_render_cache = {}
+    GIRL = None
+    GIRL_N = 0
 
+# ---------------------------------------------------------------------------
+# Fallback: ASCII art of the images in ascii/ (only if there is no girl stack)
+# ---------------------------------------------------------------------------
+_fallback_needed = GIRL is None
+if _fallback_needed:
+    _files = sorted(glob.glob(f"{IMG_DIR}/*.jpg")) + sorted(glob.glob(f"{IMG_DIR}/*.png"))
+    _grids = [decode_gray(p) for p in _files] if _files else []
+    N_IMGS = len(_files)
+    IMG_PERIOD = 3.0
+    if N_IMGS:
+        IMG_PERIOD = A["duration"] / (3 * N_IMGS)
+    N_IMG_BLOCKS = int(math.ceil(A["duration"] / IMG_PERIOD)) + 1
+    _rng = np.random.default_rng(20261010)
+    if N_IMGS:
+        _playlist = list(range(N_IMGS)) * 3
+        _rng.shuffle(_playlist)
+        while len(_playlist) < N_IMG_BLOCKS:
+            _playlist.append(int(_rng.integers(0, N_IMGS)))
+        _picks = np.array(_playlist[:N_IMG_BLOCKS], dtype=int)
+    else:
+        _picks = np.zeros(N_IMG_BLOCKS, dtype=int)
+    _render_cache = {}
 
-def ascii_for_block(blk):
-    """Render (and cache) the ASCII frame for a block; bounded cache."""
-    if blk not in _render_cache:
-        if len(_render_cache) > 8:
-            _render_cache.clear()
-        if _grids:
-            _render_cache[blk] = render_ascii(_grids[int(_picks[blk])])
-        else:
-            _render_cache[blk] = np.zeros((H, W), np.uint8)
-    return _render_cache[blk]
-
+    def ascii_for_block(blk):
+        if blk not in _render_cache:
+            if len(_render_cache) > 8:
+                _render_cache.clear()
+            _render_cache[blk] = (render_ascii(_grids[int(_picks[blk])])
+                                  if _grids else np.zeros((H, W), np.uint8))
+        return _render_cache[blk]
 
 _FILL = NF // 2                     # representative frame used when STATIC
+_blank = np.zeros((GH, GW), np.uint8)
 
 
 def build_data(n, f):
     fc = f.copy()
     luma = plane_u16(fc, 0)
     i = _FILL if STATIC else min(n, NF - 1)
-    blk = min(int((i / FPS) / IMG_PERIOD), N_IMG_BLOCKS - 1)
-    luma[:] = ascii_for_block(blk).astype(np.uint16) * 257
+    if GIRL is not None:
+        luma[:] = np.asarray(GIRL[i % GIRL_N]).astype(np.uint16) * 257
+    else:
+        blk = min(int((i / FPS) / IMG_PERIOD), N_IMG_BLOCKS - 1)
+        small = render_ascii(_grids[int(_picks[blk])]) if _grids else _blank
+        # downscale the ascii canvas (H x W) to the low-res clip with ffmpeg-free
+        # nearest sampling so the fallback still works.
+        ys = (np.arange(GH) * (H // GH)).astype(int)
+        xs = (np.arange(GW) * (W // GW)).astype(int)
+        luma[:] = small[np.ix_(ys, xs)].astype(np.uint16) * 257
     vals = np.concatenate([A["level"][i], [A["bass"][i], A["kick"][i],
                                           A["energy"][i]]]).astype(np.float32)
     for k, v in enumerate(vals):
@@ -272,11 +300,12 @@ def build_data(n, f):
     return fc
 
 
-blank = core.std.BlankClip(width=W, height=H, format=vs.YUV444P16,
+blank = core.std.BlankClip(width=GW, height=GH, format=vs.YUV444P16,
                            length=(1 if STATIC else NF), fpsnum=FPS, fpsden=1)
 data = core.std.ModifyFrame(blank, blank, build_data)
+big = core.resize.Bicubic(data, width=W, height=H)
 
-shaded = core.placebo.Shader(data, shader_s=SHADER, width=W, height=H,
+shaded = core.placebo.Shader(big, shader_s=SHADER, width=W, height=H,
                              sigmoidize=False, linearize=False, matrix=5)
 
 clip = core.resize.Bicubic(shaded, format=vs.YUV420P8, matrix_in_s="470bg",

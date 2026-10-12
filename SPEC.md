@@ -1,7 +1,7 @@
 # SPEC.md - fftechno (SRS)
 
 Technical specification of **fftechno**: a four-minute hardgroove techno track plus
-a black-and-white ASCII music video. Every sound is synthesized by **ffmpeg**; the
+a black-and-white dancing-girl music video. Every sound is synthesized by **ffmpeg**; the
 build tooling is pure Python. The arrangement and every instrument parameter live
 in markdown, and the build is reproducible.
 
@@ -14,8 +14,13 @@ only `ffmpeg` for sound. Porting the original hand-authored track to markdown mu
 be **lossless**: substituting the recorded parameter values into the templates must
 reproduce the original ffmpeg filter graphs (verified by rendering comparison).
 
+The video's main visual is a **black-and-white, edge-detected dancing girl**, cut
+out of the source clip with Robust Video Matting (RVM, ONNX), edge-detected, and
+looped on the beat grid. The voice stem is synthesised with ffmpeg's built-in
+`flite` filter (no external TTS).
+
 In scope: `aevalsrc`-based synthesis, drum/gate patterns, mix automation, side-chain,
-convolution reverb, two-pass loudness mastering, a VapourSynth ASCII video, and a
+convolution reverb, two-pass loudness mastering, an RVM + `edgedetect` video, and a
 reproducible build.
 
 Out of scope: real-time performance, a GUI, MIDI import, sample playback.
@@ -37,7 +42,7 @@ Out of scope: real-time performance, a GUI, MIDI import, sample playback.
 | bars | 140 (4:00) |
 | sample rate | 48000 Hz (oscillators generated at 192000 Hz, then downsampled) |
 | loudness target | -13 LUFS, true peak -1.0 dBFS |
-| stems | kick, clap, hat, ohat, perc, bongo, rim, shaker, bass, acid, growl, beeps, vox |
+| stems | kick, clap, hat, ohat, conga, bongo, rim, shaker, bass, acid, growl, beeps, vox |
 
 Derived: `beat = 60/140 = 0.428571 s`, `step (16th) = 0.107143 s`,
 `bar = 1.714286 s`.
@@ -61,6 +66,10 @@ Derived: `beat = 60/140 = 0.428571 s`, `step (16th) = 0.107143 s`,
                            v
               master (2-pass loudnorm)  ->  output/techno.wav
                            v
+              ascii/*.mp4 -> RVM matte -> edgedetect -> beat-locked loop
+                           v
+              output/girl_loop.mp4  +  output/girl_frames.npy
+                           v
               vspipe visualizer.vpy  ->  ffmpeg  ->  output/techno_visualizer.mp4
 ```
 
@@ -72,9 +81,16 @@ Commands (`python -m fftechno ...`):
 |---------|--------|
 | `synth` | `sounds.md` + `templates/` -> `filters/<name>.txt` |
 | `audio` | `synth` -> IR -> vocals -> stems -> mix -> master -> `techno.wav` |
-| `video [--boost F] [--static]` | render -> mux -> 720p preview -> optional re-level |
-| `all [--boost F] [--static]` | `audio`, then `video` |
+| `girl` | source clip -> RVM matte -> edge -> `girl_loop.mp4` + `girl_frames.npy` |
+| `video [--boost F] [--static]` | `girl` -> render -> mux -> 720p preview -> optional re-level |
+| `all [--boost F] [--static]` | `audio`, then `girl`, then `video` |
 | `boost F` | re-encode the MP4 audio at gain `F` (video copied) |
+
+Filtergraphs are read from files with the ffmpeg 9 syntax `-/filter_complex FILE`
+(the old `-filter_complex_script` was removed).
+
+Outputs are written with `config.unique_path`: if the target exists, the build
+writes `name_v2.ext`, `_v3`, ... so existing renders are never overwritten.
 
 A **build lock** (`output/logs/.build.lock`, created with `O_EXCL`) prevents two
 builds writing the same outputs concurrently; a second run exits with a clear
@@ -136,7 +152,8 @@ Twelve instruments, all parameterised (values in `sounds.md`):
 | clap | clap.txt | `beat, decay1/2, tone_*, hp, lpc` (beat-gated) |
 | hat | hat.txt | `decay, hp` + velocity (`vbase/vamt/gold`) |
 | ohat | ohat.txt | offbeat (`off, beat, win`), `decay, hp` |
-| perc / bongo | tom.txt | `pitches` (16-step), `gates` (16-step), `sweep, rate, decay, hp, lpc, aecho` |
+| conga | conga.txt | tuned drum: `pitches` (16-step), `gates` (16-step), `sweep, rate, decay, hp, lpc, aecho`, plus a `slap` transient |
+| bongo | tom.txt | `pitches` (16-step), `gates` (16-step), `sweep, rate, decay, hp, lpc, aecho` |
 | rim | rim.txt | `tone_f, n_amt, decay, gates, hp` |
 | shaker | shaker.txt | `decay, gates, hp` |
 | bass | bass.txt | `notes` (16-step), `detune, decay1/2, lp_bass, eq_*, asubboost, clip` |
@@ -188,19 +205,43 @@ true peak -1.0 dBFS.
 
 ## 12. Video - `visualizer.vpy`
 
-VapourSynth + vs-placebo. Images from `ascii/` are decoded with ffmpeg and drawn as
-ASCII art (a numpy 5x7 bitmap font); a shuffled playlist uses each image at least
-three times. A GLSL shader reads the ASCII (`HOOKED_tex`), an audio data strip
-(64 bands + bass + kick + energy) and `frame` (time) and draws a black-and-white
-Berlin overlay. Output is YUV420P8, piped to ffmpeg by `vspipe -c y4m`. `--static`
-renders a single frozen frame.
+VapourSynth + vs-placebo. The main visual is the edge-detected dancing girl: a
+compact uint8 frame stack (`output/girl_frames.npy`, 960x540, one loop = a whole
+number of beats) is written into the luma plane of a low-res YUV444P16 clip, the
+audio data strip (64 bands + bass + kick + energy) into the top rows, and the clip
+is upscaled to 1920x1080. A GLSL shader reads the girl (`HOOKED_tex`), the strip
+and `frame` (time) and draws a subtle black-and-white Berlin overlay plus a
+kick-synced brightness punch; the top strip rows are masked black. Output is
+YUV420P8, piped to ffmpeg by `vspipe -c y4m`. `--static` renders a single frozen
+frame.
+
+The visualizer reads its inputs from the environment: `FFTECHNO_AUDIO` (the
+mastered WAV), `FFTECHNO_GIRL_FRAMES` (the frame stack) and `FFTECHNO_STATIC`. If
+the frame stack is missing it falls back to the original ASCII art of any
+`ascii/*.jpg|png`.
+
+### 12.1 Girl pipeline - `fftechno/girl.py` + `fftechno/matte.py`
+
+1. `source_clip()`: the first video in `ascii/`.
+2. Decode `GIRL_CROP_START .. +GIRL_CROP_DURATION` (2.0 s..5.0 s = 7 beats) at
+   native size/fps.
+3. `RVMMatte` (RVM mobilenetv3 ONNX via `onnxruntime`, recurrent so temporally
+   stable) -> per-frame alpha; `largest_component` keeps only the subject (drops
+   the crowd); composite over black.
+4. ffmpeg: `fps=30`, fit to 16:9 with black bars (`scale`+`pad`), `edgedetect`
+   (white lines on black).
+5. Emit `output/girl_loop.mp4` (1920x1080, 3.0 s, silent, versioned) and
+   `output/girl_frames.npy`.
+
+Because 3.0 s = 7 beats = 1/80 of the 4:00 track, the loop tiles the whole video
+exactly `80` times and always restarts on a beat.
 
 ## 13. Verification and acceptance
 
 | Check | Method | Result |
 |-------|--------|--------|
 | Template losslessness | render each stem vs its original, compare | <= -213 dB (float noise) |
-| Filter graphs valid | `ffmpeg -filter_complex_script` per stem | clean |
+| Filter graphs valid | `ffmpeg -/filter_complex` per stem | clean |
 | Loudness | `ebur128` | -13.0 LUFS |
 | True peak | `ebur128=peak=true` | -1.0 dBFS |
 | Whole track | `techno.wav` vs reference build | byte-identical (SHA256 match) |
@@ -214,18 +255,24 @@ build lock guarantees a single writer.
 
 ## 15. Requirements and environment
 
-- ffmpeg/ffprobe (gyan.dev full build): `aevalsrc`, `asubboost`, `asoftclip`,
-  `acrusher`, `equalizer`, `highpass`, `lowpass`, `asplit`, `amix`, `pan`, `haas`,
-  `extrastereo`, `sidechaincompress`, `acompressor`, `alimiter`, `loudnorm`, `afir`,
-  `aresample`, `aformat`, `adelay`, `apad`, `volume` (`eval=frame`).
-- Python 3.10+ (standard library only).
-- Video: venv with `vapoursynth`, `numpy`, `vs-placebo` (`vspipe`), a Vulkan GPU.
-- Vocals: espeak-ng unzipped under `tools/`:
+- **ffmpeg 9+ / ffprobe** (gyan.dev full build). Audio filters: `aevalsrc`,
+  `asubboost`, `asoftclip`, `acrusher`, `equalizer`, `highpass`, `lowpass`, `asplit`,
+  `amix`, `pan`, `haas`, `extrastereo`, `sidechaincompress`, `acompressor`,
+  `alimiter`, `loudnorm`, `afir`, `aresample`, `aformat`, `adelay`, `apad`, `volume`
+  (`eval=frame`), `flite`. Video filters: `edgedetect`, `format`, `fps`, `scale`,
+  `pad`. Filtergraphs are read from files with `-/filter_complex FILE`
+  (`-filter_complex_script` was removed in ffmpeg 8/9).
+- Python 3.10+ (the audio tooling uses only the standard library).
+- Video: venv with `vapoursynth`, `numpy`, `vs-placebo` (`vspipe`) and a Vulkan GPU.
+  Run `.venv\Scripts\python -m vapoursynth config` once (the `Scripts\vapoursynth`
+  launcher needs a configured shell).
+- Isolation: `onnxruntime` plus the RVM ONNX model (~15 MB) under `tools/rvm/`:
 
   ```powershell
-  curl -L -o tools/espeak-ng.msi https://github.com/espeak-ng/espeak-ng/releases/download/1.52.0/espeak-ng.msi
-  msiexec /a tools\espeak-ng.msi /qn TARGETDIR="%CD%\tools\espeak-ng"
+  .venv\Scripts\pip install onnxruntime
+  curl -L -o tools\rvm\rvm_mobilenetv3_fp32.onnx https://github.com/PeterL1n/RobustVideoMatting/releases/download/v1.0.0/rvm_mobilenetv3_fp32.onnx
   ```
+- Vocals: ffmpeg's built-in `flite` filter (voice `slt`); no external TTS binary.
 
 ## 16. Troubleshooting / FAQ
 
@@ -252,14 +299,15 @@ build lock guarantees a single writer.
 
 ```
 song.md sounds.md            control surfaces
-templates/*.txt              synth schematics (11 templates)
+templates/*.txt              synth schematics (12 templates incl. conga)
 filters/*.txt                generated graphs + vox.txt
 fftechno/                    config, proc (build lock), audio, synth,
-                             arrangement, vox, video, cli
+                             arrangement, vox, girl, matte, video, cli
 visualizer.vpy               the video
 pyproject.toml LICENSE.md README.md SPEC.md TODO.md
-output/                      techno.wav, techno_visualizer*.mp4, stems/, logs/
-tools/ ascii/                optional external inputs
+output/                      techno*.wav, techno_visualizer*.mp4,
+                             girl_loop*.mp4, girl_frames.npy, stems/, logs/
+tools/ ascii/                RVM model + the source clip
 ```
 
 ## 19. Risks and limitations

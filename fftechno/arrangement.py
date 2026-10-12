@@ -139,7 +139,7 @@ def _pan(stem: str, src: str, pan: dict[str, tuple]) -> str:
 
 
 def build_graph(song: Song) -> str:
-    """Assemble the full mix filtergraph (a ``-filter_complex_script`` body)."""
+    """Assemble the full mix filtergraph (a ``-/filter_complex`` file body)."""
     bar = song.bar_seconds
     index = {name: i for i, name in enumerate(song.stems_order)}
     ir_index = len(song.stems_order)

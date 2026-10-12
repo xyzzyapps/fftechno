@@ -1,11 +1,15 @@
 [project]
 name = "fftechno"
-version = "0.1.0"
-description = "Hardgroove techno track (ffmpeg synthesis) + ASCII VapourSynth video."
+version = "0.2.0"
+description = "Hardgroove techno track (ffmpeg synthesis) + B/W dancing-girl VapourSynth video."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []
 license = { file = "LICENSE.md" }
+
+[project.optional-dependencies]
+video = ["vapoursynth>=70", "numpy", "vs-placebo"]
+matte = ["onnxruntime"]
 
 [project.scripts]
 fftechno = "fftechno.cli:main"

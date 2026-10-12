@@ -28,7 +28,7 @@ def render_stems(names) -> None:
     """Render each synth (its ``filters/<name>.txt``) to ``output/stems/<name>.wav``."""
     C.STEMS.mkdir(parents=True, exist_ok=True)
     for name in names:
-        ffmpeg(["-y", "-filter_complex_script", C.FILTERS / f"{name}.txt",
+        ffmpeg(["-y", "-/filter_complex", str(C.FILTERS / f"{name}.txt"),
                 "-map", "[out]", "-c:a", "pcm_f32le", C.STEMS / f"{name}.wav"])
 
 
@@ -48,7 +48,7 @@ def mix() -> None:
     for name in song.stems_order:
         inputs += ["-i", str(C.STEMS / f"{name}.wav")]
     inputs += ["-i", str(C.IR)]
-    ffmpeg(["-y", *inputs, "-filter_complex_script", script,
+    ffmpeg(["-y", *inputs, "-/filter_complex", str(script),
             "-map", "[out]", "-c:a", "pcm_f32le", C.MIX_PRE])
 
 
@@ -64,8 +64,11 @@ def _measure(path: Path) -> dict[str, str]:
     return json.loads(match.group(0))
 
 
-def master() -> None:
-    """Two-pass linear loudness normalisation + limiter + dither -> techno.wav."""
+def master() -> Path:
+    """Two-pass linear loudness normalisation + limiter + dither -> techno.wav.
+
+    Returns the path actually written (a ``_v2``/``_v3`` name if the target
+    already exists, so old renders are preserved)."""
     m = _measure(C.MIX_PRE)
     graph = (
         f"[0]loudnorm=I={C.LOUDNESS_I}:TP={C.LOUDNESS_TP}:LRA={C.LOUDNESS_LRA}"
@@ -77,12 +80,16 @@ def master() -> None:
         "aresample=48000:out_sample_fmt=s16:dither_method=triangular_hp,"
         "aformat=sample_fmts=s16:channel_layouts=stereo[out]"
     )
+    out = C.unique_path(C.AUDIO)
     ffmpeg(["-y", "-i", C.MIX_PRE, "-filter_complex", graph,
-            "-map", "[out]", "-c:a", "pcm_s16le", C.AUDIO])
+            "-map", "[out]", "-c:a", "pcm_s16le", out])
+    return out
 
 
-def build() -> None:
-    """Full audio pipeline: synth defs + IR + vocals + stems -> mix -> master."""
+def build() -> Path:
+    """Full audio pipeline: synth defs + IR + vocals + stems -> mix -> master.
+
+    Returns the path of the mastered WAV."""
     from . import synth, vox  # imported here so audio-only paths stay light
 
     names = synth.generate()        # sounds.md + templates -> filters/<name>.txt
@@ -90,4 +97,4 @@ def build() -> None:
     vox.render()
     render_stems(names)
     mix()
-    master()
+    return master()

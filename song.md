@@ -19,7 +19,7 @@ The mix input order (one `-i` per row, top to bottom). The first column only.
 | clap   |
 | hat    |
 | ohat   |
-| perc   |
+| conga  |
 | bass   |
 | growl  |
 | acid   |
@@ -39,20 +39,20 @@ A per-stem gain applied on top of the section gains below (used to balance the k
 | clap   | 2.40  |
 | hat    | 2.55  |
 | ohat   | 2.25  |
-| perc   | 1.95  |
+| conga  | 1.45  |
 | shaker | 1.875 |
 | bongo  | 1.95  |
 | rim    | 1.95  |
 | bass   | 1.15  |
 | growl  | 1.00  |
-| acid   | 1.00  |
+| acid   | 0.78  |
 
 ## Sections
 
 Each cell is that stem's gain during the bar range. `0.00` mutes the stem.
 The **final** section fades to silence over `fade_bars`.
 
-| bars    | kick | clap | hat  | ohat | perc | shaker | bongo | rim  | bass | growl | acid |
+| bars    | kick | clap | hat  | ohat | conga | shaker | bongo | rim  | bass | growl | acid |
 |---------|------|------|------|------|------|--------|-------|------|------|-------|------|
 | 0-8     | 0.90 | 0.00 | 0.50 | 0.00 | 0.00 | 0.00   | 0.00  | 0.00 | 0.00 | 0.00  | 0.80 |
 | 8-32    | 1.00 | 0.70 | 0.55 | 0.50 | 0.70 | 0.50   | 0.60  | 0.50 | 0.90 | 0.80  | 0.90 |
@@ -73,7 +73,7 @@ widening), or `stereo` (uses `left`/`right`).
 | clap   | center |      |       |
 | hat    | stereo | 0.62 | 0.38  |
 | ohat   | stereo | 0.38 | 0.62  |
-| perc   | haas   |      |       |
+| conga  | haas   |      |       |
 | shaker | stereo | 0.35 | 0.65  |
 | bongo  | stereo | 0.42 | 0.58  |
 | rim    | stereo | 0.62 | 0.38  |
@@ -110,5 +110,5 @@ or both.
 
 | stem  | level |
 |-------|-------|
-| vox   | 1.0   |
+| vox   | 1.5   |
 | beeps | 1.0   |
