@@ -1,18 +1,18 @@
 # Changelog
 
-## Unreleased
-- **Songs are folders.** All track-specific data now lives in
+## v0.2
+
+**Architecture**
+- **Songs are folders.** All track-specific data lives in
   `songs/<name>/` (`song.md`, `sounds.md`, `vocals.md`, `video.md`); the code has
-  no hardcoded track values. The earlier hardgroove track is restored alongside
-  the Basement one.
+  no hardcoded track values. Both tracks ship: Basement and Hardgroove.
 - **`fftechno/song.py`** - an abstract `Song` (paths, derived timing, vocals,
   video) with thin per-song subclasses.
-- **`fftechno/looks.py`** - the three video styles (`edge`, `pollock`, `outline`)
-  are now `Look` strategies; `girl.py` is a generic pipeline.
+- **`fftechno/looks.py`** - the video styles (`edge`, `pollock`, `outline`) are
+  `Look` strategies; `girl.py` is a generic pipeline.
 - CLI: every command takes `--song <name>`; output goes to `output/<song>/` and
   filter graphs to `filters/<song>/`.
-
-## v0.2
+- Linting/formatting: **black + ruff + pyflakes** (see `Taskfile.yml`, `task lint`).
 
 **Tracks**
 - **"Basement" - jungle techno** (155 BPM, 155 bars = 4:00): a second full track,
