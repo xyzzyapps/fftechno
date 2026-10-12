@@ -38,14 +38,14 @@ Out of scope: real-time performance, a GUI, MIDI import, sample playback.
 
 | Name | Value |
 |------|-------|
-| BPM | 140 |
-| bars | 140 (4:00) |
+| BPM | 155 |
+| bars | 155 (4:00) |
 | sample rate | 48000 Hz (oscillators generated at 192000 Hz, then downsampled) |
 | loudness target | -13 LUFS, true peak -1.0 dBFS |
-| stems | kick, clap, hat, ohat, conga, bongo, rim, shaker, bass, acid, growl, beeps, vox |
+| stems | kick, snare, snarefill, clap, hat, ohat, ride, crash, breakbeat, shaker, reese, acid, lead_pwm, lead_fm, pad, stab |
 
-Derived: `beat = 60/140 = 0.428571 s`, `step (16th) = 0.107143 s`,
-`bar = 1.714286 s`.
+Derived: `beat = 60/155 = 0.387097 s`, `step (16th) = 0.096774 s`,
+`bar = 1.548387 s`.
 
 ## 4. Architecture and data flow
 
@@ -81,9 +81,9 @@ Commands (`python -m fftechno ...`):
 |---------|--------|
 | `synth` | `sounds.md` + `templates/` -> `filters/<name>.txt` |
 | `audio` | `synth` -> IR -> vocals -> stems -> mix -> master -> `techno.wav` |
-| `girl` | source clip -> RVM matte -> edge -> `girl_loop.mp4` + `girl_frames.npy` |
-| `video [--boost F] [--static]` | `girl` -> render -> mux -> 720p preview -> optional re-level |
-| `all [--boost F] [--static]` | `audio`, then `girl`, then `video` |
+| `girl [--look edge\|pollock] [--mode reset\|trail\|build]` | source clip -> look -> `girl_loop.mp4` + `girl_frames.npy` |
+| `video [--look ..] [--mode ..] [--boost F] [--static]` | `girl` -> render -> mux -> 720p preview -> optional re-level |
+| `all [--look ..] [--mode ..] [--boost F] [--static]` | `audio`, then `girl`, then `video` |
 | `boost F` | re-encode the MP4 audio at gain `F` (video copied) |
 
 Filtergraphs are read from files with the ffmpeg 9 syntax `-/filter_complex FILE`
@@ -139,27 +139,31 @@ placeholder fails loudly.
   `if(eq(GRID,0),v0, if(eq(GRID,1),v1, ... , default))`. `seq` is a value (or param
   name), `grid` is an expression, `default` is a param name or a numeric literal.
 - Lists are `|`-separated; inside a markdown table cell the pipe is escaped `\|`.
-- Globals provided: `sr, dur, lp, osr, bar, step, gold, vbase, vamt, grid,
-  halfgrid, note_grid`.
+- Globals provided: `sr, dur, lp, osr, bar, step, beat, gold, vbase, vamt, grid,
+  halfgrid, beatgrid`.
 
 ## 8. Instruments
 
-Twelve instruments, all parameterised (values in `sounds.md`):
+Sixteen instruments, all parameterised (values in `sounds.md`):
 
 | Instrument | Template | Highlights |
 |------------|----------|------------|
-| kick | kick.txt | `beat, f0, sweep, rate, decay, click_*, sub_*, noise_*, eq_*, clip` |
-| clap | clap.txt | `beat, decay1/2, tone_*, hp, lpc` (beat-gated) |
-| hat | hat.txt | `decay, hp` + velocity (`vbase/vamt/gold`) |
-| ohat | ohat.txt | offbeat (`off, beat, win`), `decay, hp` |
-| conga | conga.txt | tuned drum: `pitches` (16-step), `gates` (16-step), `sweep, rate, decay, hp, lpc, aecho`, plus a `slap` transient |
-| bongo | tom.txt | `pitches` (16-step), `gates` (16-step), `sweep, rate, decay, hp, lpc, aecho` |
-| rim | rim.txt | `tone_f, n_amt, decay, gates, hp` |
-| shaker | shaker.txt | `decay, gates, hp` |
-| bass | bass.txt | `notes` (16-step), `detune, decay1/2, lp_bass, eq_*, asubboost, clip` |
-| acid | acid.txt | `notes, gates, bends` (16-step), filter crossfade + resonant 24 dB/oct |
-| growl | growl.txt | grain train + FM carrier + `phrase, gates` (8-step half-bar) |
-| beeps | beeps.txt | `notes, notelen, ratio, decay, adelay` placements |
+| kick | kick.txt | `f0, sweep, rate, decay, click_*, sub_*, noise_*, eq_*, clip` |
+| snare | snare.txt | `tone_amt, f1/f2, decay, noise_amt, ndecay, gates` |
+| snarefill | snare.txt | same template, 16th-note roll `gates` (arranged into fills) |
+| clap | clap.txt | `decay1/2, tone_*`, beat-gated on 2 & 4 |
+| hat | hat.txt | `decay, hp` + `gates` (taps on the first two 16ths of each beat) |
+| ohat | ohat.txt | offbeat (`off, win`), `decay, hp` |
+| ride | ride.txt | inharmonic sines + noise, `gates` on quarters, HP 1.5 kHz |
+| crash | crash.txt | noise burst, rings every `period` seconds |
+| breakbeat | breakbeat.txt | kick + snare + hat `kgates/sgates/hgates`, `chop_*` stutter |
+| shaker | shaker.txt | `decay, hp, gates` |
+| reese | reese.txt | square + detune + sub through a resonant 24 dB LP, `beatgrid` notes |
+| acid | acid.txt | 303: `notes, accents, bends, gates`; filter crossfade + resonant peak |
+| lead_pwm | lead_pwm.txt | unison PWM pulse lead, `notes, gates` |
+| lead_fm | lead_fm.txt | 2-op FM lead, `notes, gates`, `aphaser` |
+| pad | pad.txt | detuned chord (`n1/n2/n3`), slow swell |
+| stab | stab.txt | short detuned chord stab (`n1/n2/n3, gates`) |
 
 **Losslessness.** The generated graphs reproduce the original hand-authored
 expressions value-for-value (verified: rendering each stem against its original
@@ -205,33 +209,48 @@ true peak -1.0 dBFS.
 
 ## 12. Video - `visualizer.vpy`
 
-VapourSynth + vs-placebo. The main visual is the edge-detected dancing girl: a
-compact uint8 frame stack (`output/girl_frames.npy`, 960x540, one loop = a whole
-number of beats) is written into the luma plane of a low-res YUV444P16 clip, the
-audio data strip (64 bands + bass + kick + energy) into the top rows, and the clip
-is upscaled to 1920x1080. A GLSL shader reads the girl (`HOOKED_tex`), the strip
-and `frame` (time) and draws a subtle black-and-white Berlin overlay plus a
-kick-synced brightness punch; the top strip rows are masked black. Output is
-YUV420P8, piped to ffmpeg by `vspipe -c y4m`. `--static` renders a single frozen
-frame.
+VapourSynth + vs-placebo. The main visual is the dancing girl: a compact uint8
+frame stack (`output/girl_frames.npy`, 960x540, one loop = a whole number of beats)
+is written into the luma plane of a low-res YUV444P16 clip, the audio data strip
+(64 bands + bass + kick + energy) into the top rows, and the clip is upscaled to
+1920x1080. A GLSL shader reads the girl (`HOOKED_tex`), the strip and `frame`
+(time) and draws a subtle black-and-white Berlin overlay plus a kick-synced
+brightness punch; the top strip rows are masked black. Output is YUV420P8, piped
+to ffmpeg by `vspipe -c y4m`. `--static` renders a single frozen frame.
 
 The visualizer reads its inputs from the environment: `FFTECHNO_AUDIO` (the
-mastered WAV), `FFTECHNO_GIRL_FRAMES` (the frame stack) and `FFTECHNO_STATIC`. If
-the frame stack is missing it falls back to the original ASCII art of any
+mastered WAV), `FFTECHNO_GIRL_FRAMES` (the frame stack), `FFTECHNO_STATIC` and
+`FFTECHNO_POLLOCK` (the paint-accumulation mode; empty for the edge look). If the
+frame stack is missing it falls back to the original ASCII art of any
 `ascii/*.jpg|png`.
 
-### 12.1 Girl pipeline - `fftechno/girl.py` + `fftechno/matte.py`
+### 12.1 Girl pipeline - `fftechno/girl.py` (+ `fftechno/matte.py` for edge)
 
 1. `source_clip()`: the first video in `ascii/`.
 2. Decode `GIRL_CROP_START .. +GIRL_CROP_DURATION` (2.0 s..5.0 s = 7 beats) at
    native size/fps.
-3. `RVMMatte` (RVM mobilenetv3 ONNX via `onnxruntime`, recurrent so temporally
-   stable) -> per-frame alpha; `largest_component` keeps only the subject (drops
-   the crowd); composite over black.
-4. ffmpeg: `fps=30`, fit to 16:9 with black bars (`scale`+`pad`), `edgedetect`
-   (white lines on black).
-5. Emit `output/girl_loop.mp4` (1920x1080, 3.0 s, silent, versioned) and
-   `output/girl_frames.npy`.
+3. **edge look**: `RVMMatte` (RVM mobilenetv3 ONNX via `onnxruntime`, recurrent so
+   temporally stable) -> per-frame alpha; `largest_component` keeps only the
+   subject (drops the crowd); composite over black; then `edgedetect` (white lines
+   on black). **pollock look**: skip the matte and use the whole frame - `gblur`
+   -> `edgedetect` -> two crossed rotated copies blended (`rotate`+`blend
+   =lighten`) for gestural strokes.
+4. ffmpeg: `fps=30`, fit to 16:9 with black bars (`scale`+`pad`), then the look.
+5. Emit `output/girl_loop.mp4` (1920x1080, 90 frames, silent, versioned; the
+   standalone loop adds `tblend=lighten` build-up and a random splatter) and
+   `output/girl_frames.npy` (the per-frame paint pass).
+
+### 12.2 Pollock accumulation - the three modes
+
+The frame stack holds the per-frame *stroke layer*; the visualizer accumulates it
+into a running paint canvas (`max`-blend with decay), then adds fresh random
+splatter (never accumulated) each frame:
+
+| `--mode` | Behaviour | Decay/frame |
+|----------|-----------|-------------|
+| `reset` | clears at every loop boundary (a fresh canvas per 3 s phrase) | 0.90 |
+| `trail` | short-lived streaks (default) | 0.85 |
+| `build` | long-lived, densely builds up | 0.995 |
 
 Because 3.0 s = 7 beats = 1/80 of the 4:00 track, the loop tiles the whole video
 exactly `80` times and always restarts on a beat.

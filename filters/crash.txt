@@ -1,0 +1,1 @@
+aevalsrc='0.4*((random(0)*2-1)*exp(-2.2*mod(t,12.387096))+0.4*(sin(2*PI*4000*t)+0.7*sin(2*PI*6500*t))*exp(-1.8*mod(t,12.387096)))':s=192000:d=240[src];[src]highpass=f=300,lowpass=f=19000,aresample=48000[out]

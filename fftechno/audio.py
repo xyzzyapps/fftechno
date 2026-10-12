@@ -94,7 +94,8 @@ def build() -> Path:
 
     names = synth.generate()        # sounds.md + templates -> filters/<name>.txt
     make_ir()
-    vox.render()
+    if "vox" in arrangement.parse(C.SONG).stems:
+        vox.render()
     render_stems(names)
     mix()
     return master()

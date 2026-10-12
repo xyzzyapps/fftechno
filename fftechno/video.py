@@ -11,19 +11,22 @@ from . import config as C
 from .proc import ffmpeg
 
 
-def _render_and_mux(audio: Path, *, static: bool = False) -> Path:
+def _render_and_mux(audio: Path, *, look: str = "pollock", mode: str = "trail",
+                    static: bool = False) -> Path:
     """Run vspipe -> ffmpeg (H.264 + AAC) into a new master MP4.
 
     ``static=True`` tells the visualizer to emit a single frozen frame (no
-    animation) via the ``FFTECHNO_STATIC`` environment variable. The audio and
-    girl-frame paths are handed to the visualizer via the environment too.
-    Returns the path actually written (never overwrites an old render).
+    animation) via the ``FFTECHNO_STATIC`` environment variable. The audio, the
+    girl-frame path and the Pollock accumulation mode (``FFTECHNO_POLLOCK``,
+    empty for the edge look) are handed to the visualizer via the environment
+    too. Returns the path actually written (never overwrites an old render).
     """
     if not C.VSPIPE.exists():
         raise SystemExit(f"vspipe not found at {C.VSPIPE} (create the venv first)")
 
     env = dict(os.environ, FFTECHNO_STATIC="1" if static else "0",
                FFTECHNO_AUDIO=str(audio), FFTECHNO_GIRL_FRAMES=str(C.GIRL_FRAMES))
+    env[C.GIRL_POLLOCK_ENV] = mode if look == "pollock" else ""
     C.OUTPUT.mkdir(parents=True, exist_ok=True)
     out = C.unique_path(C.MASTER_VIDEO)
     with open(C.LOGS / "vspipe.log", "wb") as vlog, \
@@ -86,14 +89,16 @@ def _replace(src: Path, dst: Path, attempts: int = 20) -> None:
     raise SystemExit(f"could not replace {dst} (file locked by another process?)")
 
 
-def build(*, audio: Path | None = None, boost: float = 1.0, static: bool = False) -> None:
+def build(*, audio: Path | None = None, look: str = "pollock", mode: str = "trail",
+          boost: float = 1.0, static: bool = False) -> None:
     """Render the video, make the preview, and optionally re-level to *boost*.
 
     Uses the mastered WAV at *audio* (defaults to the canonical ``techno.wav``).
-    ``static=True`` renders a single frozen frame for the whole duration.
+    ``look``/``mode`` select the visual (edge or Pollock). ``static=True`` renders
+    a single frozen frame for the whole duration.
     """
     audio = audio or C.AUDIO
-    master = _render_and_mux(audio, static=static)
+    master = _render_and_mux(audio, look=look, mode=mode, static=static)
     print(f"video: {master}")
     preview = _preview(master)
     print(f"preview: {preview}")

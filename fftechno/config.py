@@ -47,6 +47,9 @@ GIRL_LOOP_BEATS = 7               # loop length in beats
 GIRL_FRAME_W, GIRL_FRAME_H = 960, 540   # stored frame stack size (16:9)
 GIRL_FRAMES = OUTPUT / "girl_frames.npy"    # intermediate consumed by the video
 GIRL_LOOP = OUTPUT / "girl_loop.mp4"        # standalone deliverable
+GIRL_LOOK = "pollock"           # "edge" (matte + line drawing) | "pollock"
+GIRL_POLLOCK_MODE = "trail"     # "reset" | "trail" | "build" (paint accumulation)
+GIRL_POLLOCK_ENV = "FFTECHNO_POLLOCK"   # set by video.py; read by the visualizer
 
 # --- musical timing --------------------------------------------------------
 BPM = 140

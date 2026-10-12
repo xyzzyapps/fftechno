@@ -41,6 +41,8 @@ core = vs.core
 # ---------------------------------------------------------------------------
 AUDIO_PATH = os.environ.get("FFTECHNO_AUDIO", "output/techno.wav")
 GIRL_FRAMES = os.environ.get("FFTECHNO_GIRL_FRAMES", "output/girl_frames.npy")
+# "reset" | "trail" | "build" for the Pollock look (empty = edge, no accumulation).
+POLLOCK = os.environ.get("FFTECHNO_POLLOCK", "").strip()
 IMG_DIR = "ascii"
 # When set (vspipe sees FFTECHNO_STATIC=1) the output is a single frozen frame
 # repeated for the whole duration -> no animation.
@@ -115,7 +117,7 @@ vec4 hook(){
     col += exp(-9.0*r) * (0.05 + kick*0.18);
     col *= 1.0 - 0.42*r;                                      // vignette
     col *= 0.92 + 0.08*sin(HOOKED_pos.y*res.y*1.5708);        // scanline
-    col += (random - 0.5)*0.045;                              // film grain
+    col += (random - 0.5)*0.03;                               // film grain
     if(step(0.78, kick) > 0.5){
         col = col*1.35 + (hash(floor(t*30.0)) - 0.5)*0.15;    // kick glitch
     }
@@ -277,18 +279,36 @@ if _fallback_needed:
 _FILL = NF // 2                     # representative frame used when STATIC
 _blank = np.zeros((GH, GW), np.uint8)
 
+# Running paint canvas for the Pollock look (accumulated frame to frame).
+_CANVAS = np.zeros((GH, GW), np.float32)
+_DECAY = {"reset": 0.90, "trail": 0.85, "build": 0.995}.get(POLLOCK, 1.0)
+_RNG = np.random.default_rng(7)
+_SPLATTER = 0.015                            # fresh paint flecks per frame
+
 
 def build_data(n, f):
     fc = f.copy()
     luma = plane_u16(fc, 0)
     i = _FILL if STATIC else min(n, NF - 1)
     if GIRL is not None:
-        luma[:] = np.asarray(GIRL[i % GIRL_N]).astype(np.uint16) * 257
+        stroke = np.asarray(GIRL[i % GIRL_N], np.float32)
+        if STATIC or not POLLOCK:
+            canvas = stroke
+        else:
+            if POLLOCK == "reset" and (i % GIRL_N) == 0:
+                _CANVAS[:] = 0.0
+            np.multiply(_CANVAS, _DECAY, out=_CANVAS)
+            np.maximum(_CANVAS, stroke, out=_CANVAS)
+            canvas = _CANVAS
+        if POLLOCK and not STATIC:
+            speckle = (_RNG.random((GH, GW)) < _SPLATTER).astype(np.float32) * 255.0
+            canvas = np.maximum(canvas, speckle)
+        luma[:] = np.clip(canvas, 0, 255).astype(np.uint16) * 257
     else:
         blk = min(int((i / FPS) / IMG_PERIOD), N_IMG_BLOCKS - 1)
         small = render_ascii(_grids[int(_picks[blk])]) if _grids else _blank
-        # downscale the ascii canvas (H x W) to the low-res clip with ffmpeg-free
-        # nearest sampling so the fallback still works.
+        # downscale the ascii canvas (H x W) to the low-res clip with nearest
+        # sampling so the fallback still works.
         ys = (np.arange(GH) * (H // GH)).astype(int)
         xs = (np.arange(GW) * (W // GW)).astype(int)
         luma[:] = small[np.ix_(ys, xs)].astype(np.uint16) * 257

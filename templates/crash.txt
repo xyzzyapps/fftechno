@@ -1,0 +1,1 @@
+aevalsrc='{{amp}}*((random(0)*2-1)*exp(-{{decay}}*mod(t,{{period}}))+{{tone_amt}}*(sin(2*PI*{{f1}}*t)+{{tmix}}*sin(2*PI*{{f2}}*t))*exp(-{{decay2}}*mod(t,{{period}})))':s={{sr}}:d={{dur}}[src];[src]highpass=f={{hp}},lowpass=f={{lp}},aresample={{osr}}[out]
