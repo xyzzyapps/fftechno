@@ -11,7 +11,7 @@ markdown.
 
 ## 1. Purpose and scope
 
-Produce a fixed-length techno track and a video, driven by two markdown files, using
+Produce a fixed-length techno track and a video, driven by a song's markdown files, using
 `ffmpeg` for sound. The original hardgroove port to markdown was **lossless**
 (substituting the recorded parameter values reproduces the original ffmpeg filter
 graphs, verified by rendering comparison).
@@ -31,7 +31,7 @@ Out of scope: real-time performance, a GUI, MIDI import, sample playback.
 
 ## 2. Glossary
 
-- **Stem** - one layer of the mix (kick, bass, ...). Rendered to `output/stems/`.
+- **Stem** - one layer of the mix (kick, bass, ...). Rendered to `output/<song>/stems/`.
 - **Template** - an ffmpeg filtergraph with `{{key}}` placeholders (`templates/`).
 - **Instrument** - a row in `sounds.md`: a template plus the values for it.
 - **Grid / step** - a 16th note. A bar is 16 steps.
@@ -54,41 +54,42 @@ Derived: `beat = 60/155 = 0.387097 s`, `step (16th) = 0.096774 s`,
 ## 4. Architecture and data flow
 
 ```
-  song.md  (arrangement + mix)          sounds.md + templates/  (instruments)
-      |                                        |
-      |  arrangement.py                        |  synth.py
-      v                                        v
-  mix filtergraph  (output/logs/mix.txt)   filters/<name>.txt   (17 graphs)
-      |                                        |
-      |                                        |  audio.render_stems()
-      |                                        v
-      |                                   output/stems/<name>.wav   (+ vox.wav)
-      |                                        |
-      +--------------------+-------------------+
+  songs/<song>/song.md (arrangement)     songs/<song>/sounds.md + templates/
+      |  arrangement.py                            |  synth.py
+      v                                            v
+  mix filtergraph                              filters/<song>/<name>.txt
+  (output/<song>/logs/mix.txt)                       |
+      |                                              |  audio.render_stems()
+      |                                              v
+      |                               output/<song>/stems/<name>.wav  (+ vox.wav)
+      +--------------------+-------------------------+
                            v
-              mix  ->  output/mix_pre.wav
+              mix  ->  output/<song>/mix_pre.wav
                            v
-              master (2-pass loudnorm)  ->  output/techno.wav
+              master (2-pass loudnorm)  ->  output/<song>/techno.wav
                            v
-              ascii/*.mp4 -> look (outline|edge|pollock) -> beat-synced data
+              songs/<song>/video.md -> Look -> beat-synced data
                            v
-              output/girl_loop.mp4  +  girl_frames.npy  /  girl_sprites.npy+girl_pick.npy
+              output/<song>/girl_loop.mp4
+              + girl_frames.npy  /  girl_sprites.npy + girl_pick.npy
                            v
-              vspipe visualizer.vpy  ->  ffmpeg  ->  output/techno_visualizer.mp4
+              vspipe visualizer.vpy -> ffmpeg -> output/<song>/techno_visualizer.mp4
 ```
 
 ## 5. Build pipeline
 
 Commands (`python -m fftechno ...`):
 
+Commander: every command takes `--song <name>` (default `basement`).
+
 | Command | Phases |
 |---------|--------|
-| `synth` | `sounds.md` + `templates/` -> `filters/<name>.txt` |
-| `audio [--safe] [--tts kitten\|piper]` | `synth` -> IR -> vocals -> stems -> mix -> master -> `techno.wav` |
-| `girl [--look edge\|pollock\|outline] [--mode reset\|trail\|build]` | source clip -> look -> `girl_loop.mp4` + frame data |
-| `video [--look ..] [--mode ..] [--boost F] [--static]` | `girl` -> render -> mux -> 720p preview -> optional re-level |
-| `all [--look ..] [--mode ..] [--safe] [--tts ..] [--boost F] [--static]` | `audio`, then `girl`, then `video` |
-| `boost F` | re-encode the MP4 audio at gain `F` (video copied) |
+| `synth --song S` | `songs/S/sounds.md` + `templates/` -> `filters/S/<name>.txt` |
+| `audio --song S [--safe] [--tts kitten\|piper]` | `synth` -> IR -> vocals -> stems -> mix -> master -> `output/S/techno.wav` |
+| `girl --song S [--look edge\|pollock\|outline] [--mode reset\|trail\|build]` | source clip -> look -> `output/S/girl_loop.mp4` + picture data |
+| `video --song S [--look ..] [--mode ..] [--boost F] [--static]` | `girl` -> render -> mux -> 720p preview -> optional re-level |
+| `all --song S [--look ..] [--mode ..] [--safe] [--tts ..] [--boost F] [--static]` | `audio`, then `girl`, then `video` |
+| `boost F --song S` | re-encode the MP4 audio at gain `F` (video copied) |
 
 Filtergraphs are read from files with the ffmpeg 9 syntax `-/filter_complex FILE`
 (the old `-filter_complex_script` was removed).
@@ -96,11 +97,11 @@ Filtergraphs are read from files with the ffmpeg 9 syntax `-/filter_complex FILE
 Outputs are written with `config.unique_path`: if the target exists, the build
 writes `name_v2.ext`, `_v3`, ... so existing renders are never overwritten.
 
-A **build lock** (`output/logs/.build.lock`, created with `O_EXCL`) prevents two
+A **build lock** (`output/<song>/logs/.build.lock`, created with `O_EXCL`) prevents two
 builds writing the same outputs concurrently; a second run exits with a clear
 message.
 
-## 6. Control surface A - `song.md`
+## 6. Control surface A - `songs/<name>/song.md`
 
 Scalars (all required):
 
@@ -129,7 +130,7 @@ Tables (all required unless noted):
 Rules: section ranges are contiguous; the last row's end equals `bars`; every stem
 has a `Pan` row; `low_bus` stems must be in `Stems`. Missing entries raise.
 
-## 7. Control surface B - `sounds.md` + `templates/`
+## 7. Control surface B - `songs/<name>/sounds.md` + `templates/`
 
 `sounds.md` holds global scalars and an **Instruments** table
 `| name | template | parameters |`. `synth.py` substitutes the values into
@@ -172,8 +173,8 @@ Seventeen instruments, all parameterised (values in `sounds.md`):
 
 The **vox** stem is not a template: `fftechno/vox.py` synthesizes short phrases
 with a local neural TTS (Kitten TTS via `kittenml`, or Piper) and places them via
-`filters/vox.txt`; the same `config.VOX_LINES` times are written to
-`output/lyrics.json` for the on-screen lyrics.
+`filters/<song>/vox.txt`; the same `songs/<song>/vocals.md` times are written to
+`output/<song>/lyrics.json` for the on-screen lyrics.
 
 **Losslessness.** The generated graphs reproduce the original hand-authored
 expressions value-for-value (verified: rendering each stem against its original
@@ -195,7 +196,7 @@ differs only by float rounding, <= -213 dB).
   `afir=dry=0:wet=<reverb_wet>:gtype=peak` with the IR as the last input;
 - bus: `[sum][rvb]amix -> extrastereo=m=<stereo_width> -> acompressor=...`.
 
-The graph is written to `output/logs/mix.txt`.
+The graph is written to `output/<song>/logs/mix.txt`.
 
 ## 10. Master specification - `fftechno/audio.py`
 
@@ -216,7 +217,7 @@ With `--safe` (off by default) a second, stricter `alimiter` (`limit=0.5`, about
 
 ## 11. Output format
 
-`output/techno.wav`: pcm_s16le, 48 kHz, 2 channels, 240.000 s, -13.0 LUFS,
+`output/<song>/techno.wav`: pcm_s16le, 48 kHz, 2 channels, 240.000 s, -13.0 LUFS,
 true peak -1.0 dBFS.
 
 ## 12. Video - `visualizer.vpy`
@@ -250,7 +251,7 @@ mode) and `FFTECHNO_STATIC`. If none is present it falls back to ASCII art of an
      contour only** (`dilate(subj) & ~subj` - no interior/face lines) in white,
      plus the **blue hair chroma-keyed** from the source RGB.
 4. ffmpeg/numpy: `fps=30`, fit to 16:9 with black bars (`scale`+`pad`), then the look.
-5. Emit `output/girl_loop.mp4` (silent, versioned) and the frame data -
+5. Emit `output/<song>/girl_loop.mp4` (silent, versioned) and the frame data -
    `girl_frames.npy` (edge/pollock) or `girl_sprites.npy` + `girl_pick.npy`
    (outline).
 
@@ -276,8 +277,8 @@ sprite so the colour survives the shader.
 
 ### 12.4 On-screen lyrics
 
-The visualizer reads `output/lyrics.json` (`[[text, start], ...]`, written by
-`vox.py` from `config.VOX_LINES`, the same list that places the vocal audio) and
+The visualizer reads `output/<song>/lyrics.json` (`[[text, start], ...]`, written
+by `vox.py` from the song's `vocals.md`, the same list that places the vocal audio) and
 draws each line for `LYRIC_DUR` seconds near the bottom using a self-contained 5x7
 uppercase bitmap font - no font file, no libass/fontconfig.
 
@@ -332,9 +333,9 @@ guarantees a single writer.
 - **Silence or a thin mix?** A stem WAV may be truncated (two builds overlapping).
   Re-run `python -m fftechno audio`; the build lock prevents overlap.
 - **"another fftechno build is running"?** A lock file exists; wait, or delete
-  `output/logs/.build.lock` if stale.
+  `output/<song>/logs/.build.lock` if stale.
 - **A template error?** `synth` names the missing value.
-- **Where are logs?** `output/logs/` (`vspipe.log`, `ffmpeg_video.log`,
+- **Where are logs?** `output/<song>/logs/` (`vspipe.log`, `ffmpeg_video.log`,
   `mix.txt`).
 - **Noncommercial?** Yes - PolyForm Noncommercial 1.0.0 (`LICENSE.md`).
 
@@ -351,17 +352,16 @@ guarantees a single writer.
 ## 18. File inventory
 
 ```
-song.md sounds.md            control surfaces
+songs/<name>/                control surfaces: song.md, sounds.md, vocals.md, video.md
 templates/*.txt              synth schematics (16 used by 17 instruments; some legacy ones remain)
-filters/*.txt                generated graphs + vox.txt
-fftechno/                    config, proc (build lock), audio, synth,
+filters/<name>/*.txt         generated graphs + vox.txt
+fftechno/                    config, song, looks, proc (build lock), audio, synth,
                              arrangement, vox, girl, matte, video, cli
 visualizer.vpy               the video
 pyproject.toml LICENSE.md README.md SPEC.md TODO.md CHANGELOG.md
-output/                      techno*.wav, techno_visualizer*.mp4,
-                             girl_loop*.mp4, girl_frames.npy,
-                             girl_sprites.npy, girl_pick.npy, lyrics.json,
-                             stems/, logs/
+output/<name>/               techno*.wav, techno_visualizer*.mp4, girl_loop*.mp4,
+                             girl_frames.npy / girl_sprites.npy + girl_pick.npy,
+                             lyrics.json, stems/, logs/
 tools/ ascii/                RVM + voice models + the source clip
 ```
 
@@ -372,3 +372,29 @@ tools/ ascii/                RVM + voice models + the source clip
 - `random()` noise is deterministic for a fixed ffmpeg build, but a different build
   may change the noise timbre.
 - VapourSynth scripts are Python by definition; the video layer needs the venv.
+
+## 20. Songs and looks
+
+The code is song-agnostic; song data lives in folders and the style-specific video
+code lives in one place.
+
+**Songs** (`fftechno/song.py`). An abstract `Song` exposes a track: paths to its
+four markdown files; its `filters`/`output`/`stems`/`logs` dirs; its parsed
+arrangement; derived `bpm`/`bar`/`duration`; its `vocals()` (TTS engine/voice +
+phrase times) and `video()` (source, crop, look, loop) settings; and per-song
+output paths (`techno.wav`, `techno_visualizer*.mp4`, `girl_*`, `lyrics.json`).
+Concrete songs are thin subclasses (`Basement`, `Hardgroove`) registered in a
+`SONGS` dict; a folder with no subclass still works (a generic `Song`). Adding a
+track = add `songs/<name>/` with the four markdown files (plus, optionally, a
+subclass).
+
+**Looks** (`fftechno/looks.py`). `girl.py` is a generic pipeline (decode ->
+optional matte -> look -> fit -> emit); a `Look` strategy declares `needs_matte`,
+`emits` (`stack` grey frames or `sprites` RGB), an optional `accumulation` hint and
+`decode` (`native`/`fitted`), plus `stack_filter(w,h)` (a `-filter_complex` body)
+and/or `sprites(frames, model)`. Three are registered: `edge`, `pollock`,
+`outline`. Adding a look = one subclass (and, if it needs knobs, a
+`| look | key | value |` row in a song's `video.md`).
+
+`templates/`, `filters/<song>/`, `visualizer.vpy` and the models in `tools/` are
+shared across every song.

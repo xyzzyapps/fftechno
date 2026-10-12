@@ -1,4 +1,4 @@
-"""Video build: pipe VapourSynth into ffmpeg, mux the audio, and re-level."""
+"""Video build for a song: pipe VapourSynth into ffmpeg, mux the audio, re-level."""
 
 from __future__ import annotations
 
@@ -9,31 +9,31 @@ from pathlib import Path
 
 from . import config as C
 from .proc import ffmpeg
+from .song import Song
 
 
-def _render_and_mux(audio: Path, *, look: str = "pollock", mode: str = "trail",
+def _render_and_mux(song: Song, audio: Path, *, look: str, mode: str,
                     static: bool = False) -> Path:
-    """Run vspipe -> ffmpeg (H.264 + AAC) into a new master MP4.
+    """Run vspipe -> ffmpeg (H.264 + AAC) into a new master MP4 for *song*.
 
-    ``static=True`` tells the visualizer to emit a single frozen frame (no
-    animation) via the ``FFTECHNO_STATIC`` environment variable. The audio, the
-    girl-frame path and the Pollock accumulation mode (``FFTECHNO_POLLOCK``,
-    empty for the edge look) are handed to the visualizer via the environment
-    too. Returns the path actually written (never overwrites an old render).
-    """
+    The audio path, the picture data and the Pollock accumulation mode are handed
+    to the visualizer through the environment. Returns the path written (never
+    overwrites an old render)."""
     if not C.VSPIPE.exists():
         raise SystemExit(f"vspipe not found at {C.VSPIPE} (create the venv first)")
 
+    sprites = (str(song.girl_sprites) if look == "outline" else "")
+    pick = (str(song.girl_pick) if look == "outline" else "")
     env = dict(os.environ, FFTECHNO_STATIC="1" if static else "0",
-               FFTECHNO_AUDIO=str(audio), FFTECHNO_GIRL_FRAMES=str(C.GIRL_FRAMES))
-    env[C.GIRL_POLLOCK_ENV] = mode if look == "pollock" else ""
-    env[C.GIRL_SPRITES_ENV] = str(C.GIRL_SPRITES) if look == "outline" else ""
-    env[C.GIRL_PICK_ENV] = str(C.GIRL_PICK) if look == "outline" else ""
-    env["FFTECHNO_LYRICS"] = str(C.LYRICS) if C.LYRICS.exists() else ""
-    C.OUTPUT.mkdir(parents=True, exist_ok=True)
-    out = C.unique_path(C.MASTER_VIDEO)
-    with open(C.LOGS / "vspipe.log", "wb") as vlog, \
-            open(C.LOGS / "ffmpeg_video.log", "wb") as flog:
+               FFTECHNO_AUDIO=str(audio),
+               FFTECHNO_GIRL_FRAMES=str(song.girl_frames),
+               FFTECHNO_GIRL_SPRITES=sprites, FFTECHNO_GIRL_PICK=pick,
+               FFTECHNO_POLLOCK=(mode if look == "pollock" else ""),
+               FFTECHNO_LYRICS=(str(song.lyrics) if song.lyrics.exists() else ""))
+    song.output.mkdir(parents=True, exist_ok=True)
+    out = C.unique_path(song.master_video)
+    with open(song.logs / "vspipe.log", "wb") as vlog, \
+            open(song.logs / "ffmpeg_video.log", "wb") as flog:
         vsp = subprocess.Popen(
             [str(C.VSPIPE), "-c", "y4m", str(C.VISUALIZER), "-"],
             stdout=subprocess.PIPE, stderr=vlog, env=env)
@@ -51,30 +51,29 @@ def _render_and_mux(audio: Path, *, look: str = "pollock", mode: str = "trail",
     return out
 
 
-def _preview(master: Path) -> Path:
+def _preview(song: Song, master: Path) -> Path:
     """Downscale the master into a new web-friendly 720p preview."""
-    out = C.unique_path(C.PREVIEW_VIDEO)
-    ffmpeg(["-y", "-i", master, "-vf", "scale=1280:720",
+    out = C.unique_path(song.preview_video)
+    ffmpeg(["-y", "-i", str(master), "-vf", "scale=1280:720",
             "-c:v", "libx264", "-preset", "medium", "-crf", "22",
             "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", str(out)])
     return out
 
 
-def re_level(factor: float, audio: Path | None = None,
+def re_level(factor: float, song: Song, audio: Path | None = None,
              targets: tuple[Path, ...] | None = None, ceiling: float = 0.70) -> None:
     """Re-encode MP4 audio at *factor* gain (video copied), limiter-bounded."""
-    audio = audio or C.AUDIO
+    audio = audio or song.audio
     if targets is None:
-        targets = tuple(t for t in (C.MASTER_VIDEO, C.PREVIEW_VIDEO) if t.exists())
-    boost = C.LOGS / "boost.wav"
+        targets = tuple(t for t in (song.master_video, song.preview_video) if t.exists())
+    boost = song.logs / "boost.wav"
     ffmpeg(["-y", "-i", str(audio), "-af",
             f"volume={factor},alimiter=limit={ceiling}:level=disabled",
             "-c:a", "pcm_s16le", str(boost)])
-
     for target in targets:
         if not target.exists():
             continue
-        tmp = C.LOGS / f"{target.stem}__rel.mp4"
+        tmp = song.logs / f"{target.stem}__rel.mp4"
         ffmpeg(["-y", "-i", str(target), "-i", str(boost), "-map", "0:v", "-map", "1:a",
                 "-c:v", "copy", "-c:a", "aac", "-b:a", "192k", "-shortest",
                 "-movflags", "+faststart", str(tmp)])
@@ -92,18 +91,17 @@ def _replace(src: Path, dst: Path, attempts: int = 20) -> None:
     raise SystemExit(f"could not replace {dst} (file locked by another process?)")
 
 
-def build(*, audio: Path | None = None, look: str = "pollock", mode: str = "trail",
-          boost: float = 1.0, static: bool = False) -> None:
-    """Render the video, make the preview, and optionally re-level to *boost*.
-
-    Uses the mastered WAV at *audio* (defaults to the canonical ``techno.wav``).
-    ``look``/``mode`` select the visual (edge or Pollock). ``static=True`` renders
-    a single frozen frame for the whole duration.
-    """
-    audio = audio or C.AUDIO
-    master = _render_and_mux(audio, look=look, mode=mode, static=static)
+def build(song: Song, audio: Path | None = None, look: str | None = None,
+          mode: str | None = None, boost: float = 1.0, static: bool = False) -> None:
+    """Render *song*'s video, make the preview, and optionally re-level to *boost*."""
+    look = look or song.video().look
+    if mode is None:
+        from .looks import get_look
+        mode = get_look(look).accumulation or "trail"
+    audio = audio or song.audio
+    master = _render_and_mux(song, audio, look=look, mode=mode, static=static)
     print(f"video: {master}")
-    preview = _preview(master)
+    preview = _preview(song, master)
     print(f"preview: {preview}")
     if boost and boost != 1.0:
-        re_level(boost, audio=audio, targets=(master, preview))
+        re_level(boost, song, audio=audio, targets=(master, preview))

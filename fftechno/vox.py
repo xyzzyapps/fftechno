@@ -1,11 +1,10 @@
-"""Speech vocal stem.
+"""Speech vocal stem for a song.
 
 A local neural TTS - **Kitten TTS** (``kittenml`` + the nano ONNX model) or
-**Piper** - synthesises each short phrase, then ``filters/vox.txt`` places them at
-the times in ``config.VOX_LINES``; the same list is written to
-``output/lyrics.json`` so the video can draw the on-screen lyrics at exactly the
-same moments. Both engines run offline; select with ``config.VOX_ENGINE`` or
-``python -m fftechno audio --tts kitten|piper``.
+**Piper** - synthesises each phrase from the song's ``vocals.md``; the same
+(text, time) list is written to ``lyrics.json`` for the video's on-screen lyrics.
+Both engines run offline; the engine/voice come from ``vocals.md`` (overridable
+with ``--tts``).
 """
 
 from __future__ import annotations
@@ -15,6 +14,7 @@ import subprocess
 
 from . import config as C
 from .proc import ffmpeg
+from .song import Song
 
 _KITTEN = None      # cached KittenTTS model (loading is slow)
 
@@ -32,7 +32,6 @@ def _treat(sr: int) -> str:
 
 
 def _kitten_model():
-    """Load (and cache) the Kitten TTS ONNX model."""
     global _KITTEN
     if _KITTEN is None:
         from kittenml import KittenTTS
@@ -40,20 +39,18 @@ def _kitten_model():
     return _KITTEN
 
 
-def _say_kitten(text: str, wav) -> int:
-    """Synthesize *text* with Kitten TTS; return the sample rate."""
+def _say_kitten(text: str, wav, voice: str) -> int:
     import soundfile as sf
-    audio = _kitten_model().generate(text, voice=C.KITTEN_VOICE, speed=C.KITTEN_SPEED)
+    audio = _kitten_model().generate(text, voice=voice, speed=1.15)
     sf.write(str(wav), audio, C.KITTEN_SR)
     return C.KITTEN_SR
 
 
-def _say_piper(text: str, wav) -> int:
-    """Synthesize *text* with Piper (text on stdin); return the sample rate."""
-    if not C.PIPER.exists():
-        raise SystemExit(f"piper not found at {C.PIPER}; see SPEC.md")
-    subprocess.run([str(C.PIPER), "--model", str(C.PIPER_VOICE),
-                    "--output_file", str(wav)],
+def _say_piper(text: str, wav, voice: str) -> int:
+    model = C.PIPER_VOICES / f"{voice}.onnx"
+    if not C.PIPER.exists() or not model.exists():
+        raise SystemExit(f"piper/voice not found ({C.PIPER}, {model}); see SPEC.md")
+    subprocess.run([str(C.PIPER), "--model", str(model), "--output_file", str(wav)],
                    input=text.encode("utf-8"), check=True)
     return C.PIPER_SR
 
@@ -61,38 +58,48 @@ def _say_piper(text: str, wav) -> int:
 _ENGINES = {"kitten": _say_kitten, "piper": _say_piper}
 
 
-def placement_graph(sr: int) -> str:
-    """The ``-filter_complex`` body that places each phrase in time."""
+def placement_graph(lines: list[tuple[str, float]], sr: int, duration: float) -> str:
+    """The ``-filter_complex`` body placing each line (one input per line)."""
     treat = _treat(sr)
-    lines = [f"[{i}]{treat},adelay={int(round(t * 1000))}:all=1[d{i}]"
-             for i, (_text, t) in enumerate(C.VOX_LINES)]
-    mixes = "".join(f"[d{i}]" for i in range(len(C.VOX_LINES)))
-    lines.append(f"{mixes}amix=inputs={len(C.VOX_LINES)}:normalize=0,"
-                 f"apad=whole_dur={C.DURATION:g}[out]")
-    return ";\n".join(lines) + "\n"
+    parts = [f"[{k}]{treat},adelay={int(round(t * 1000))}:all=1[d{k}]"
+             for k, (_text, t) in enumerate(lines)]
+    mixes = "".join(f"[d{k}]" for k in range(len(lines)))
+    parts.append(f"{mixes}amix=inputs={len(lines)}:normalize=0,"
+                 f"apad=whole_dur={duration:g}[out]")
+    return ";\n".join(parts) + "\n"
 
 
-def write_lyrics() -> None:
-    """Write the ``[[text, start], ...]`` list the visualizer draws on screen."""
-    C.LYRICS.write_text(json.dumps([[t, round(s, 3)] for t, s in C.VOX_LINES]),
-                        encoding="utf-8")
+def write_lyrics(song: Song, lines: list[tuple[str, float]]) -> None:
+    song.lyrics.write_text(json.dumps([[t, round(s, 3)] for t, s in lines]),
+                           encoding="utf-8")
 
 
-def render(engine: str | None = None) -> None:
-    """Synthesize each phrase and place them into ``stems/vox.wav``."""
-    engine = engine or C.VOX_ENGINE
+def render(song: Song, engine: str | None = None) -> None:
+    """Synthesize the song's phrases and place them into ``stems/vox.wav``."""
+    vocals = song.vocals()
+    if not vocals.lines:
+        return
+    engine = engine or vocals.engine
     if engine not in _ENGINES:
         raise SystemExit(f"unknown TTS engine '{engine}' (use 'kitten' or 'piper')")
     say = _ENGINES[engine]
-    C.LOGS.mkdir(parents=True, exist_ok=True)
-    raw: list[str] = []
+
+    song.filters.mkdir(parents=True, exist_ok=True)
+    song.logs.mkdir(parents=True, exist_ok=True)
+    song.stems.mkdir(parents=True, exist_ok=True)
+
+    wavs: dict[str, object] = {}
     sr = C.KITTEN_SR
-    for i, (text, _t) in enumerate(C.VOX_LINES):
-        wav = C.LOGS / f"vox_{i}.wav"
-        sr = say(text, wav)
-        raw += ["-i", str(wav)]
-    graph = placement_graph(sr)
-    (C.FILTERS / "vox.txt").write_text(graph, encoding="utf-8")
-    ffmpeg(["-y", *raw, "-/filter_complex", str(C.FILTERS / "vox.txt"),
-            "-map", "[out]", "-c:a", "pcm_f32le", C.STEMS / "vox.wav"])
-    write_lyrics()
+    for i, text in enumerate(dict.fromkeys(t for t, _ in vocals.lines)):
+        wav = song.logs / f"vox_{i}.wav"
+        sr = say(text, wav, vocals.voice)
+        wavs[text] = wav
+
+    inputs: list[str] = []
+    for text, _t in vocals.lines:
+        inputs += ["-i", str(wavs[text])]
+    graph = placement_graph(vocals.lines, sr, song.duration)
+    (song.filters / "vox.txt").write_text(graph, encoding="utf-8")
+    ffmpeg(["-y", *inputs, "-/filter_complex", str(song.filters / "vox.txt"),
+            "-map", "[out]", "-c:a", "pcm_f32le", str(song.stems / "vox.wav")])
+    write_lyrics(song, vocals.lines)

@@ -104,15 +104,15 @@ def _render(template: str, values: dict[str, str], name: str) -> str:
     return _simple(template, values, name)
 
 
-def generate(sounds_path: Path | None = None) -> list[str]:
-    """Render every instrument in ``sounds.md`` into ``filters/<name>.txt``."""
-    path = sounds_path or C.SOUNDS
-    text = path.read_text(encoding="utf-8")
+def generate(song) -> list[str]:
+    """Render every instrument in the song's ``sounds.md`` into its filter dir."""
+    song.filters.mkdir(parents=True, exist_ok=True)
+    text = song.sounds_md.read_text(encoding="utf-8")
     globals_ = _scalars(text)
     written: list[str] = []
     for name, template, params in _rows(text):
         values = {**globals_, **_params(params)}
         body = _render((C.TEMPLATES / template).read_text(encoding="utf-8"), values, name)
-        (C.FILTERS / f"{name}.txt").write_text(body, encoding="utf-8")
+        (song.filters / f"{name}.txt").write_text(body, encoding="utf-8")
         written.append(name)
     return written

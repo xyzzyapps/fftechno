@@ -1,8 +1,8 @@
-"""Audio build: render the stems, mix them, and master with 2-pass loudnorm.
+"""Audio build for a song: render the stems, mix them, master with 2-pass loudnorm.
 
-All sound is produced by ffmpeg from the filter graphs in ``filters/``. The
-master stage measures the mix with loudnorm and feeds the measured values back
-into a second, linear pass, so ``filters/master.txt`` is no longer needed.
+All sound is produced by ffmpeg from the song's filter graphs (``filters/<song>/``).
+The master stage measures the mix with loudnorm and feeds the measured values back
+into a second, linear pass.
 """
 
 from __future__ import annotations
@@ -15,41 +15,38 @@ from pathlib import Path
 from . import arrangement
 from . import config as C
 from .proc import ffmpeg
+from .song import Song
 
 
-def make_ir() -> None:
+def make_ir(song: Song) -> None:
     """Generate the convolution reverb impulse response (decaying noise)."""
     expr = "(random(0)*2-1)*exp(-2.2*t)|(random(1)*2-1)*exp(-2.4*t)"
+    song.logs.mkdir(parents=True, exist_ok=True)
     ffmpeg(["-y", "-f", "lavfi", "-i", f"aevalsrc='{expr}':s=48000:d=2.2",
-            "-c:a", "pcm_f32le", C.IR])
+            "-c:a", "pcm_f32le", song.ir])
 
 
-def render_stems(names) -> None:
-    """Render each synth (its ``filters/<name>.txt``) to ``output/stems/<name>.wav``."""
-    C.STEMS.mkdir(parents=True, exist_ok=True)
+def render_stems(song: Song, names) -> None:
+    """Render each synth (``filters/<song>/<name>.txt``) to ``stems/<name>.wav``."""
+    song.stems.mkdir(parents=True, exist_ok=True)
     for name in names:
-        ffmpeg(["-y", "-/filter_complex", str(C.FILTERS / f"{name}.txt"),
-                "-map", "[out]", "-c:a", "pcm_f32le", C.STEMS / f"{name}.wav"])
+        ffmpeg(["-y", "-/filter_complex", str(song.filters / f"{name}.txt"),
+                "-map", "[out]", "-c:a", "pcm_f32le", song.stems / f"{name}.wav"])
 
 
-def mix() -> None:
-    """Mix the stems using the arrangement parsed from ``song.md``.
-
-    The per-stem section automation (plus panning, side-chain and reverb bus) is
-    generated into ``output/logs/mix.txt`` and applied as a filtergraph.
-    """
-    song = arrangement.parse(C.SONG)
-    graph = arrangement.build_graph(song)
-    C.LOGS.mkdir(parents=True, exist_ok=True)
-    script = C.LOGS / "mix.txt"
-    script.write_text(graph, encoding="utf-8")
+def mix(song: Song) -> None:
+    """Mix the stems using the song's arrangement (section automation, pan, ...)."""
+    parsed = song.arrangement()
+    script = song.logs / "mix.txt"
+    song.logs.mkdir(parents=True, exist_ok=True)
+    script.write_text(arrangement.build_graph(parsed), encoding="utf-8")
 
     inputs: list[str] = []
-    for name in song.stems_order:
-        inputs += ["-i", str(C.STEMS / f"{name}.wav")]
-    inputs += ["-i", str(C.IR)]
+    for name in parsed.stems_order:
+        inputs += ["-i", str(song.stems / f"{name}.wav")]
+    inputs += ["-i", str(song.ir)]
     ffmpeg(["-y", *inputs, "-/filter_complex", str(script),
-            "-map", "[out]", "-c:a", "pcm_f32le", C.MIX_PRE])
+            "-map", "[out]", "-c:a", "pcm_f32le", song.mix_pre])
 
 
 def _measure(path: Path) -> dict[str, str]:
@@ -64,13 +61,12 @@ def _measure(path: Path) -> dict[str, str]:
     return json.loads(match.group(0))
 
 
-def master(safe: bool = False) -> Path:
+def master(song: Song, safe: bool = False) -> Path:
     """Two-pass linear loudness normalisation + limiter + dither -> techno.wav.
 
     ``safe=True`` adds an extra, stricter limiter (ear protection; OFF by default).
-    Returns the path actually written (a ``_v2``/``_v3`` name if the target
-    already exists, so old renders are preserved)."""
-    m = _measure(C.MIX_PRE)
+    Returns the path actually written (a versioned name if the target exists)."""
+    m = _measure(song.mix_pre)
     guard = (f"alimiter=limit={C.SAFE_CEILING:g}:level=disabled," if safe else "")
     graph = (
         f"[0]loudnorm=I={C.LOUDNESS_I}:TP={C.LOUDNESS_TP}:LRA={C.LOUDNESS_LRA}"
@@ -83,23 +79,20 @@ def master(safe: bool = False) -> Path:
         "aresample=48000:out_sample_fmt=s16:dither_method=triangular_hp,"
         "aformat=sample_fmts=s16:channel_layouts=stereo[out]"
     )
-    out = C.unique_path(C.AUDIO)
-    ffmpeg(["-y", "-i", C.MIX_PRE, "-filter_complex", graph,
-            "-map", "[out]", "-c:a", "pcm_s16le", out])
+    out = C.unique_path(song.audio)
+    ffmpeg(["-y", "-i", str(song.mix_pre), "-filter_complex", graph,
+            "-map", "[out]", "-c:a", "pcm_s16le", str(out)])
     return out
 
 
-def build(safe: bool = False, tts: str | None = None) -> Path:
-    """Full audio pipeline: synth defs + IR + vocals + stems -> mix -> master.
+def build(song: Song, safe: bool = False, tts: str | None = None) -> Path:
+    """Full audio pipeline for *song*: synth defs + IR + vocals + stems -> mix -> master."""
+    from . import synth, vox
 
-    ``safe=True`` adds the ear-protection limiter; ``tts`` selects the vocal
-    engine ("kitten" or "piper"). Returns the mastered WAV path."""
-    from . import synth, vox  # imported here so audio-only paths stay light
-
-    names = synth.generate()        # sounds.md + templates -> filters/<name>.txt
-    make_ir()
-    if "vox" in arrangement.parse(C.SONG).stems:
-        vox.render(engine=tts)
-    render_stems(names)
-    mix()
-    return master(safe=safe)
+    names = synth.generate(song)
+    make_ir(song)
+    if "vox" in song.arrangement().stems:
+        vox.render(song, engine=tts)
+    render_stems(song, names)
+    mix(song)
+    return master(song, safe=safe)

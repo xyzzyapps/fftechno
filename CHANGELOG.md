@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+- **Songs are folders.** All track-specific data now lives in
+  `songs/<name>/` (`song.md`, `sounds.md`, `vocals.md`, `video.md`); the code has
+  no hardcoded track values. The earlier hardgroove track is restored alongside
+  the Basement one.
+- **`fftechno/song.py`** - an abstract `Song` (paths, derived timing, vocals,
+  video) with thin per-song subclasses.
+- **`fftechno/looks.py`** - the three video styles (`edge`, `pollock`, `outline`)
+  are now `Look` strategies; `girl.py` is a generic pipeline.
+- CLI: every command takes `--song <name>`; output goes to `output/<song>/` and
+  filter graphs to `filters/<song>/`.
+
 ## v0.2
 
 **Tracks**

@@ -10,7 +10,10 @@ beat-locked cut of a dancing girl drawn as a white **outline** with her **blue h
 kept in colour**, over black; two other looks are built in - `--look pollock` (an
 all-over Jackson-Pollock-style abstract painting) and `--look edge` (a clean line
 drawing of the matted subject). Short **vocals** (a local neural TTS) are cut with
-matching **lyrics** on screen. You shape the track by editing two plain text files.
+matching **lyrics** on screen.
+
+Each track is a folder under **`songs/`**; the code is generic and you shape a
+track by editing its markdown files.
 
 If you can edit a spreadsheet, you can remix this track.
 
@@ -24,13 +27,14 @@ If you can edit a spreadsheet, you can remix this track.
 
 | File | What it is |
 |------|------------|
-| `output/techno.wav` | the finished track (48 kHz stereo, 4:00, -13 LUFS) |
-| `output/techno_visualizer.mp4` | the music video (1920x1080, 30 fps) |
-| `output/techno_visualizer_720p.mp4` | a smaller version for sharing |
-| `output/girl_loop.mp4` | the standalone dancing-girl loop (beat-synced stills) |
+| `output/<song>/techno.wav` | the finished track (48 kHz stereo, 4:00, -13 LUFS) |
+| `output/<song>/techno_visualizer.mp4` | the music video (1920x1080, 30 fps) |
+| `output/<song>/techno_visualizer_720p.mp4` | a smaller version for sharing |
+| `output/<song>/girl_loop.mp4` | the standalone dancing-girl loop (beat-synced stills) |
 
-Existing files are **never overwritten**: a second build writes `techno_v2.wav`,
-`techno_visualizer_v2.mp4`, and so on.
+`<song>` is the folder name (default `basement`). Existing files are **never
+overwritten**: a second build writes `techno_v2.wav`, `techno_visualizer_v2.mp4`,
+and so on.
 
 ## Quick start
 
@@ -47,13 +51,14 @@ python -m venv .venv
 #   (the pollock look needs no model; the Kitten TTS voice model downloads itself)
 
 # build the track (a few minutes)
-python -m fftechno audio
+python -m fftechno audio --song basement
 
 # listen
-ffplay output/techno.wav
+ffplay output/basement/techno.wav
 ```
 
 To make the video too: `python -m fftechno all` (needs `ffmpeg` 9+ on your PATH).
+Every command takes `--song <name>` (default `basement`).
 Piper is supported as an alternative voice: unzip its Windows build into
 `tools\piper\` with a voice in `tools\piper\voices\`, then `--tts piper`.
 
@@ -71,12 +76,14 @@ Two things decide how the track sounds:
 1. **What each layer is made of** - the "recipe" for the sound.
 2. **When each layer plays** - the arrangement.
 
-Both live in text files you can edit:
+Both live in text files you can edit - one folder per song under `songs/`:
 
 | File | You use it to control |
 |------|-----------------------|
-| `song.md` | the **arrangement**: tempo, length, when each layer comes in and out, left/right placement, and the global mix effects |
-| `sounds.md` | the **recipes**: the tuning of every instrument (pitch, punch, decay, brightness, note patterns, ...) |
+| `songs/<song>/song.md` | the **arrangement**: tempo, length, when each layer comes in and out, left/right placement, and the global mix effects |
+| `songs/<song>/sounds.md` | the **recipes**: the tuning of every instrument (pitch, punch, decay, brightness, note patterns, ...) |
+| `songs/<song>/vocals.md` | the **voice** (TTS engine + voice) and the phrase timings (also the on-screen lyrics) |
+| `songs/<song>/video.md` | the **visual**: source clip, crop window, default look and loop length |
 
 The recipes themselves are the files in `templates/`. Think of `sounds.md` as the
 settings sheet and `templates/` as the schematic: `sounds.md` fills in the numbers
@@ -126,12 +133,12 @@ silent. `gates` are 16 steps per bar - one bar of 16th notes.
 
 | Command | What it does |
 |---------|--------------|
-| `python -m fftechno audio` | rebuild `output/techno.wav` from the markdown files |
-| `python -m fftechno girl` | build the B/W dancing-girl loop (`output/girl_loop.mp4`) |
-| `python -m fftechno synth` | rebuild `filters/<name>.txt` from `sounds.md` + `templates/` |
-| `python -m fftechno video` | render the music video (add `--static` for a still frame) |
-| `python -m fftechno all` | audio, then the girl loop, then video |
-| `python -m fftechno boost 2.0` | make the finished MP4s louder (200%) |
+| `python -m fftechno audio --song S` | rebuild `output/S/techno.wav` from the markdown files |
+| `python -m fftechno girl --song S` | build the dancing-girl picture (`output/S/girl_loop.mp4`) |
+| `python -m fftechno synth --song S` | rebuild `filters/S/<name>.txt` from `sounds.md` + `templates/` |
+| `python -m fftechno video --song S` | render the music video (add `--static` for a still frame) |
+| `python -m fftechno all --song S` | audio, then the girl loop, then video |
+| `python -m fftechno boost 2.0 --song S` | make the finished MP4s louder (200%) |
 
 `audio`/`all` also take **`--safe`** (off by default): it adds an extra
 ear-protection limiter so the master can't exceed a conservative ceiling - useful
@@ -150,13 +157,12 @@ A lock file stops two builds from running at once (they would corrupt each other
 ## Project layout
 
 ```
-song.md            the arrangement and mix  (edit me)
-sounds.md          the instrument settings  (edit me)
+songs/<name>/      one folder per track (song.md, sounds.md, vocals.md, video.md)
 templates/         one synth "schematic" per instrument
-filters/           the generated ffmpeg graphs (+ vox.txt, the vocal timing)
-fftechno/          the Python build tooling (girl.py, matte.py, audio, video, ...)
+filters/<name>/    the generated ffmpeg graphs (+ vox.txt, the vocal timing)
+fftechno/          the Python build tooling (song, looks, girl, matte, audio, video, ...)
 visualizer.vpy     the VapourSynth + GLSL dancing-girl video
-output/            the rendered audio, video, stems and logs
+output/<name>/     the rendered audio, video, stems and logs (per song)
 ascii/             the source clip the video is made from
 tools/             models: RVM matting (tools/rvm) + Kitten/Piper voices (optional)
 ```
@@ -177,8 +183,8 @@ tools/             models: RVM matting (tools/rvm) + Kitten/Piper voices (option
 
 ## Reproducibility
 
-`python -m fftechno audio` rebuilds everything from `song.md`, `sounds.md` and
-`templates/`. The generated `filters/*.txt` and the ffmpeg-synthesised stems are
+`python -m fftechno audio --song S` rebuilds everything from `songs/S/` and
+`templates/`. The generated `filters/S/*.txt` and the ffmpeg-synthesised stems are
 reproducible; the neural-TTS voice is deterministic for a given model.
 
 ## License
