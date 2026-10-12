@@ -31,28 +31,39 @@ class MatteModel:
 class RVMMatte(MatteModel):
     """RVM (Robust Video Matting) mobilenetv3, recurrent across frames."""
 
-    def __init__(self, model_path: Path, downscale: float = 0.5,
-                 providers: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        model_path: Path,
+        downscale: float = 0.5,
+        providers: list[str] | None = None,
+    ) -> None:
         import onnxruntime as ort  # imported lazily so audio-only builds stay light
 
         if not Path(model_path).exists():
             raise SystemExit(f"RVM model not found at {model_path}; see SPEC.md")
         self.session = ort.InferenceSession(
-            str(model_path), providers=providers or ["CPUExecutionProvider"])
+            str(model_path), providers=providers or ["CPUExecutionProvider"]
+        )
         self.downscale = np.array([downscale], np.float32)
         # Recurrent state, seeded at 1x1; the model resizes it on the first call.
         self.rec: list[np.ndarray] = [
-            np.zeros((1, c, 1, 1), np.float32) for c in (16, 20, 40, 64)]
+            np.zeros((1, c, 1, 1), np.float32) for c in (16, 20, 40, 64)
+        ]
 
     def matte(self, rgb: np.ndarray) -> np.ndarray:
         """Return the alpha matte ``(H, W)`` float32 for one RGB frame."""
         src = (rgb.astype(np.float32) / 255.0).transpose(2, 0, 1)[None]
-        out = self.session.run(None, {
-            "src": src,
-            "r1i": self.rec[0], "r2i": self.rec[1],
-            "r3i": self.rec[2], "r4i": self.rec[3],
-            "downsample_ratio": self.downscale,
-        })
+        out = self.session.run(
+            None,
+            {
+                "src": src,
+                "r1i": self.rec[0],
+                "r2i": self.rec[1],
+                "r3i": self.rec[2],
+                "r4i": self.rec[3],
+                "downsample_ratio": self.downscale,
+            },
+        )
         self.rec = list(out[2:6])
         return out[1][0, 0]
 
@@ -62,13 +73,13 @@ def dilate(mask: np.ndarray, k: int) -> np.ndarray:
     out = mask
     for _ in range(k):
         p = np.pad(out, 1, mode="constant", constant_values=False)
-        out = (p[1:-1, 1:-1] | p[:-2, 1:-1] | p[2:, 1:-1]
-               | p[1:-1, :-2] | p[1:-1, 2:])
+        out = p[1:-1, 1:-1] | p[:-2, 1:-1] | p[2:, 1:-1] | p[1:-1, :-2] | p[1:-1, 2:]
     return out
 
 
-def largest_component(mask: np.ndarray, down: int = 8, frac: float = 0.5,
-                      dilate_px: int = 6) -> np.ndarray:
+def largest_component(
+    mask: np.ndarray, down: int = 8, frac: float = 0.5, dilate_px: int = 6
+) -> np.ndarray:
     """Return a boolean mask of the largest connected blob of *mask*.
 
     Labelling is done on a ``down``-times block-reduced copy (any-block mean
@@ -97,7 +108,12 @@ def largest_component(mask: np.ndarray, down: int = 8, frac: float = 0.5,
                 size += 1
                 for dy, dx in ((-1, 0), (1, 0), (0, -1), (0, 1)):
                     ny, nx = cy + dy, cx + dx
-                    if 0 <= ny < sh and 0 <= nx < sw and small[ny, nx] and not labels[ny, nx]:
+                    if (
+                        0 <= ny < sh
+                        and 0 <= nx < sw
+                        and small[ny, nx]
+                        and not labels[ny, nx]
+                    ):
                         labels[ny, nx] = current
                         stack.append((ny, nx))
             if size > best_size:

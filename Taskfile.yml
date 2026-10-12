@@ -1,0 +1,42 @@
+version: '3'
+
+vars:
+  PY: .venv/Scripts/python.exe
+
+tasks:
+  lint:
+    desc: pyflakes + ruff + black --check
+    cmds:
+      - '{{.PY}} -m pyflakes fftechno visualizer.vpy'
+      - '{{.PY}} -m ruff check fftechno visualizer.vpy'
+      - '{{.PY}} -m black --check fftechno'
+
+  format:
+    desc: format the package with black
+    cmds:
+      - '{{.PY}} -m black fftechno'
+
+  synth:
+    desc: 'regenerate filter graphs (song=basement)'
+    cmds:
+      - '{{.PY}} -m fftechno synth --song {{.song | default "basement"}}'
+
+  audio:
+    desc: 'build the track (song=basement)'
+    cmds:
+      - '{{.PY}} -m fftechno audio --song {{.song | default "basement"}}'
+
+  girl:
+    desc: 'build the dancing-girl picture (song=basement)'
+    cmds:
+      - '{{.PY}} -m fftechno girl --song {{.song | default "basement"}}'
+
+  video:
+    desc: 'render the video (song=basement)'
+    cmds:
+      - '{{.PY}} -m fftechno video --song {{.song | default "basement"}}'
+
+  all:
+    desc: 'audio + girl + video (song=basement)'
+    cmds:
+      - '{{.PY}} -m fftechno all --song {{.song | default "basement"}}'

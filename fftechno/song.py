@@ -22,16 +22,17 @@ from . import config as C
 # ---------------------------------------------------------------------------
 def _cells(line: str) -> list[str]:
     inner = line.strip()
-    if inner.startswith("|"):
-        inner = inner[1:]
+    inner = inner.removeprefix("|")
     if inner.endswith("|") and not inner.endswith("\\|"):
         inner = inner[:-1]
     return [c.replace("\\|", "|").strip() for c in re.split(r"(?<!\\)\|", inner)]
 
 
 def _scalars(text: str) -> dict[str, str]:
-    return {m.group(1): m.group(2)
-            for m in re.finditer(r"^\s*([a-z_]+)\s*:\s*(\S+)\s*$", text, re.M)}
+    return {
+        m.group(1): m.group(2)
+        for m in re.finditer(r"^\s*([a-z_]+)\s*:\s*(\S+)\s*$", text, re.MULTILINE)
+    }
 
 
 def _rows(text: str, header: list[str]) -> list[list[str]]:
@@ -58,6 +59,7 @@ def _rows(text: str, header: list[str]) -> list[list[str]]:
 @dataclass
 class Vocals:
     """TTS voice and the (text, time) phrase list."""
+
     engine: str = "kitten"
     voice: str = "Luna"
     lines: list[tuple[str, float]] = field(default_factory=list)
@@ -66,7 +68,8 @@ class Vocals:
 @dataclass
 class Video:
     """The song's visual: source clip, crop window, default look and loop length."""
-    source: str = ""                 # relative to the project root, or absolute
+
+    source: str = ""  # relative to the project root, or absolute
     crop_start: float = 2.0
     crop_duration: float = 3.0
     look: str = "outline"
@@ -181,6 +184,7 @@ class Song(ABC):
         """Parse ``song.md`` (cached)."""
         if getattr(self, "_arr", None) is None:
             from . import arrangement
+
             self._arr = arrangement.parse(self.song_md)
         return self._arr
 
@@ -203,8 +207,11 @@ class Song(ABC):
         text = self.vocals_md.read_text(encoding="utf-8")
         scalars = _scalars(text)
         lines = [(r[0], float(r[1])) for r in _rows(text, ["text", "time"])]
-        return Vocals(engine=scalars.get("engine", "kitten"),
-                      voice=scalars.get("voice", "Luna"), lines=lines)
+        return Vocals(
+            engine=scalars.get("engine", "kitten"),
+            voice=scalars.get("voice", "Luna"),
+            lines=lines,
+        )
 
     # --- video -------------------------------------------------------------
     def video(self) -> Video:
@@ -251,12 +258,16 @@ class Hardgroove(Song):
 
 def names() -> list[str]:
     """All song names (folders on disk, plus any registered but missing a folder)."""
-    found = {p.name for p in C.SONGS.iterdir() if p.is_dir()} if C.SONGS.exists() else set()
+    found = (
+        {p.name for p in C.SONGS.iterdir() if p.is_dir()} if C.SONGS.exists() else set()
+    )
     return sorted(found | set(SONGS))
 
 
 def load(name: str) -> Song:
     """Return the Song for *name* (a registered subclass, or a generic one)."""
     if name not in names():
-        raise SystemExit(f"unknown song '{name}' (have: {', '.join(names()) or 'none'})")
+        raise SystemExit(
+            f"unknown song '{name}' (have: {', '.join(names()) or 'none'})"
+        )
     return SONGS.get(name, _GenericSong)(name)

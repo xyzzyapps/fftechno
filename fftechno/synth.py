@@ -16,7 +16,6 @@ Template language
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from . import config as C
 
@@ -26,8 +25,10 @@ _IF_STEPS = re.compile(r"\{\{\s*if_steps\(([^}]*)\)\s*\}\}")
 
 def _scalars(text: str) -> dict[str, str]:
     """Global ``key: value`` lines (values are substituted verbatim)."""
-    return {m.group(1): m.group(2)
-            for m in re.finditer(r"^\s*([a-z_]+)\s*:\s*(\S+)\s*$", text, re.M)}
+    return {
+        m.group(1): m.group(2)
+        for m in re.finditer(r"^\s*([a-z_]+)\s*:\s*(\S+)\s*$", text, re.MULTILINE)
+    }
 
 
 def _params(cell: str) -> dict[str, str]:
@@ -43,8 +44,7 @@ def _params(cell: str) -> dict[str, str]:
 def _cells(line: str) -> list[str]:
     """Split a markdown table row on unescaped '|' (``\\|`` is a literal pipe)."""
     inner = line.strip()
-    if inner.startswith("|"):
-        inner = inner[1:]
+    inner = inner.removeprefix("|")
     if inner.endswith("|") and not inner.endswith("\\|"):
         inner = inner[:-1]
     return [c.replace("\\|", "|").strip() for c in re.split(r"(?<!\\)\|", inner)]
@@ -76,6 +76,7 @@ def _simple(text: str, values: dict[str, str], name: str) -> str:
         if key not in values:
             raise SystemExit(f"sounds.md: instrument '{name}' needs value '{key}'")
         return values[key]
+
     return _PLACEHOLDER.sub(repl, text)
 
 
@@ -112,7 +113,9 @@ def generate(song) -> list[str]:
     written: list[str] = []
     for name, template, params in _rows(text):
         values = {**globals_, **_params(params)}
-        body = _render((C.TEMPLATES / template).read_text(encoding="utf-8"), values, name)
+        body = _render(
+            (C.TEMPLATES / template).read_text(encoding="utf-8"), values, name
+        )
         (song.filters / f"{name}.txt").write_text(body, encoding="utf-8")
         written.append(name)
     return written

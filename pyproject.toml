@@ -10,9 +10,23 @@ license = { file = "LICENSE.md" }
 [project.optional-dependencies]
 video = ["vapoursynth>=70", "numpy", "vs-placebo"]
 matte = ["onnxruntime"]
+tts = ["kittenml", "soundfile", "huggingface_hub", "phonemizer", "espeakng_loader"]
+dev = ["black", "pyflakes", "ruff"]
 
 [project.scripts]
 fftechno = "fftechno.cli:main"
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "FURB"]
+# B024/B027: Song/Look are abstract bases by convention (defaults + no-op hooks).
+ignore = ["B024", "B027"]
 
 [build-system]
 requires = ["setuptools>=61"]

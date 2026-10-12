@@ -135,7 +135,8 @@ _LETTER_ARR = {k: np.array([[c == "#" for c in row] for row in v])
 LYRICS = []
 if LYRICS_PATH and os.path.exists(LYRICS_PATH):
     try:
-        LYRICS = json.load(open(LYRICS_PATH, encoding="utf-8"))
+        with open(LYRICS_PATH, encoding="utf-8") as fh:
+            LYRICS = json.load(fh)
     except Exception:
         LYRICS = []
 
@@ -252,7 +253,7 @@ def analyse(path):
     mono = data.mean(axis=1)
 
     duration = nframes / sr
-    n_frames = int(math.ceil(duration * FPS))
+    n_frames = math.ceil(duration * FPS)
     hop = sr // FPS
     win = 2048
     window = np.hanning(win).astype(np.float32)
@@ -329,7 +330,7 @@ if _fallback_needed:
     IMG_PERIOD = 3.0
     if N_IMGS:
         IMG_PERIOD = A["duration"] / (3 * N_IMGS)
-    N_IMG_BLOCKS = int(math.ceil(A["duration"] / IMG_PERIOD)) + 1
+    N_IMG_BLOCKS = math.ceil(A["duration"] / IMG_PERIOD) + 1
     _rng = np.random.default_rng(20261010)
     if N_IMGS:
         _playlist = list(range(N_IMGS)) * 3

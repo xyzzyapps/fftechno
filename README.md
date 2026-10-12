@@ -181,6 +181,19 @@ tools/             models: RVM matting (tools/rvm) + Kitten/Piper voices (option
 - The voice uses a local neural TTS - **Kitten TTS** (default, `kittenml`) or
   **Piper** (`tools/piper`). Both run offline; pick with `--tts kitten|piper`.
 
+## Development
+
+Linting and formatting are wired up (see `Taskfile.yml`):
+
+```powershell
+task lint     # pyflakes + ruff + black --check
+task format   # black
+```
+
+`ruff` (with its pyflakes/complexity/simplify rules) and `pyflakes` must be clean,
+and the package is `black`-formatted. The VapourSynth script (`visualizer.vpy`) is
+linted too. There is no test suite yet - the build itself is the check.
+
 ## Reproducibility
 
 `python -m fftechno audio --song S` rebuilds everything from `songs/S/` and

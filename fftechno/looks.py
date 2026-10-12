@@ -10,7 +10,7 @@ Every look declares how it consumes the source (``needs_matte``), what it emits
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 
@@ -20,8 +20,10 @@ from .matte import dilate, largest_component
 
 def fit(out_w: int, out_h: int) -> str:
     """Resample to the video fps and letterbox into a 16:9 frame."""
-    return (f"fps={C.VIDEO_FPS},scale=-2:{out_h}:flags=lanczos,"
-            f"pad={out_w}:{out_h}:(ow-iw)/2:(oh-ih)/2:black")
+    return (
+        f"fps={C.VIDEO_FPS},scale=-2:{out_h}:flags=lanczos,"
+        f"pad={out_w}:{out_h}:(ow-iw)/2:(oh-ih)/2:black"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -31,10 +33,10 @@ class Look(ABC):
     """A style: how to turn the cropped source frames into the video picture."""
 
     name: str = ""
-    needs_matte: bool = False          # run RVM matting before the transform?
-    emits: str = "stack"               # "stack" (grey npy) | "sprites" (RGB npy + pick)
-    accumulation: str | None = None    # shader hint for stack looks
-    decode: str = "native"             # "native" or "fitted" (to GIRL_FRAME_W/H)
+    needs_matte: bool = False  # run RVM matting before the transform?
+    emits: str = "stack"  # "stack" (grey npy) | "sprites" (RGB npy + pick)
+    accumulation: str | None = None  # shader hint for stack looks
+    decode: str = "native"  # "native" or "fitted" (to GIRL_FRAME_W/H)
 
     def configure(self, params: dict[str, str]) -> None:
         """Apply per-song overrides from ``video.md`` (optional)."""
@@ -84,11 +86,13 @@ class PollockLook(Look):
         )
         if not accumulate:
             return head + "[x2]null[out]"
-        return (head
-                + f"nullsrc=s={out_w}x{out_h}:r={C.VIDEO_FPS},format=gray,"
-                + "geq=lum='if(lt(random(1),0.02),255,0)'[sp];"
-                + "[x2]tblend=all_mode=lighten[st];"
-                + "[st][sp]blend=all_mode=lighten[out]")
+        return (
+            head
+            + f"nullsrc=s={out_w}x{out_h}:r={C.VIDEO_FPS},format=gray,"
+            + "geq=lum='if(lt(random(1),0.02),255,0)'[sp];"
+            + "[x2]tblend=all_mode=lighten[st];"
+            + "[st][sp]blend=all_mode=lighten[out]"
+        )
 
     def stack_filter(self, out_w: int, out_h: int) -> str:
         return self._filter(out_w, out_h, False)
@@ -104,7 +108,7 @@ class OutlineLook(Look):
     needs_matte = True
     emits = "sprites"
     decode = "fitted"
-    top_margin = 70                    # rows ignored at the top (e.g. a light truss)
+    top_margin = 70  # rows ignored at the top (e.g. a light truss)
     hair_gain = 1.15
 
     def configure(self, params: dict[str, str]) -> None:
@@ -113,23 +117,26 @@ class OutlineLook(Look):
         if "hair_gain" in params:
             self.hair_gain = float(params["hair_gain"])
 
-    def stack_filter(self, out_w: int, out_h: int) -> str:      # pragma: no cover
+    def stack_filter(self, out_w: int, out_h: int) -> str:  # pragma: no cover
         raise NotImplementedError("outline emits sprites, not a stack")
 
-    def sprites(self, frames: np.ndarray, model: Callable[[np.ndarray], np.ndarray]) -> np.ndarray:
+    def sprites(
+        self, frames: np.ndarray, model: Callable[[np.ndarray], np.ndarray]
+    ) -> np.ndarray:
         h, w = frames.shape[1:3]
         sprites = np.zeros((frames.shape[0], h, w, 3), np.uint8)
         for i, frame in enumerate(frames):
             alpha = model(frame)
             fine = alpha > 0.5
-            fine[:self.top_margin] = False
+            fine[: self.top_margin] = False
             subj = fine & largest_component(fine, down=10, frac=0.55, dilate_px=2)
             outline = dilate(subj, 2) & ~subj
             hair = _blue_mask(frame) & dilate(subj, 3)
             sprite = sprites[i]
             sprite[outline] = 255
-            sprite[hair] = np.clip(frame[hair].astype(np.int16) * self.hair_gain,
-                                   0, 255).astype(np.uint8)
+            sprite[hair] = np.clip(
+                frame[hair].astype(np.int16) * self.hair_gain, 0, 255
+            ).astype(np.uint8)
         return sprites
 
 
@@ -139,7 +146,9 @@ def _blue_mask(rgb: np.ndarray) -> np.ndarray:
     return (b > 70) & (b - r > 25) & (b - g > 15)
 
 
-LOOKS: dict[str, Look] = {look.name: look for look in (EdgeLook(), PollockLook(), OutlineLook())}
+LOOKS: dict[str, Look] = {
+    look.name: look for look in (EdgeLook(), PollockLook(), OutlineLook())
+}
 
 
 def get_look(name: str, params: dict[str, str] | None = None) -> Look:

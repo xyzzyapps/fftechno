@@ -16,8 +16,7 @@ from pathlib import Path
 def _cells(line: str) -> list[str]:
     """Split a markdown table row on unescaped '|' (``\\|`` is a literal pipe)."""
     inner = line.strip()
-    if inner.startswith("|"):
-        inner = inner[1:]
+    inner = inner.removeprefix("|")
     if inner.endswith("|") and not inner.endswith("\\|"):
         inner = inner[:-1]
     return [c.replace("\\|", "|").strip() for c in re.split(r"(?<!\\)\|", inner)]
@@ -61,7 +60,11 @@ def _tables(text: str) -> list[tuple[list[str], list[list[str]]]]:
     lines = text.splitlines()
     i = 0
     while i < len(lines):
-        sep = re.match(r"^\s*\|[\s:|.-]+\|\s*$", lines[i + 1]) if i + 1 < len(lines) else None
+        sep = (
+            re.match(r"^\s*\|[\s:|.-]+\|\s*$", lines[i + 1])
+            if i + 1 < len(lines)
+            else None
+        )
         if lines[i].lstrip().startswith("|") and sep:
             header = _cells(lines[i])
             rows: list[list[str]] = []
@@ -79,12 +82,17 @@ def _tables(text: str) -> list[tuple[list[str], list[list[str]]]]:
 def parse(path: Path) -> Song:
     """Parse the ``song.md`` control surface (all values required)."""
     text = path.read_text(encoding="utf-8")
-    scalars = dict(re.findall(r"^\s*([a-z_]+)\s*:\s*(\S+)\s*$", text, re.M))
+    scalars = dict(re.findall(r"^\s*([a-z_]+)\s*:\s*(\S+)\s*$", text, re.MULTILINE))
     for key in ("bpm", "bars", "fade_bars", "sidechain_key", "low_bus"):
         if key not in scalars:
             raise SystemExit(f"song.md: missing scalar '{key}'")
-    song = Song(float(scalars["bpm"]), int(float(scalars["bars"])), float(scalars["fade_bars"]),
-                sidechain_key=scalars["sidechain_key"], low_bus=scalars["low_bus"].split("|"))
+    song = Song(
+        float(scalars["bpm"]),
+        int(float(scalars["bars"])),
+        float(scalars["fade_bars"]),
+        sidechain_key=scalars["sidechain_key"],
+        low_bus=scalars["low_bus"].split("|"),
+    )
 
     for header, rows in _tables(text):
         head = [h.lower() for h in header]
@@ -97,12 +105,16 @@ def parse(path: Path) -> Song:
             song.arranged = list(cols)
             for row in rows:
                 lo, hi = (int(x) for x in re.split(r"\s*-\s*", row[0]))
-                song.sections.append((lo, hi, {cols[k]: float(row[k + 1])
-                                               for k in range(len(cols))}))
+                song.sections.append(
+                    (lo, hi, {cols[k]: float(row[k + 1]) for k in range(len(cols))})
+                )
         elif head[:2] == ["stem", "mode"]:
             for row in rows:
-                song.pan[row[0]] = (("stereo", float(row[2]), float(row[3]))
-                                    if row[1].strip().lower() == "stereo" else (row[1].strip().lower(),))
+                song.pan[row[0]] = (
+                    ("stereo", float(row[2]), float(row[3]))
+                    if row[1].strip().lower() == "stereo"
+                    else (row[1].strip().lower(),)
+                )
         elif head[0] == "effect":
             song.effects = {r[0]: float(r[1]) for r in rows}
         elif head[:2] == ["stem", "level"]:
@@ -117,13 +129,17 @@ def parse(path: Path) -> Song:
     _need(song.pan, song.sidechain_key, "Pan")
     for stem in song.low_bus:
         if stem not in song.stems:
-            raise SystemExit(f"song.md: low_bus stem '{stem}' is not in the Stems table")
+            raise SystemExit(
+                f"song.md: low_bus stem '{stem}' is not in the Stems table"
+            )
     return song
 
 
 def _expr(gains: list[float], starts: list[float], fade: float) -> str:
     """Nested ``if(lt(t, ...))`` automation; the last section fades to silence."""
-    parts = [f"if(lt(t,{starts[i + 1]:.6f}),{gains[i]:g}," for i in range(len(gains) - 1)]
+    parts = [
+        f"if(lt(t,{starts[i + 1]:.6f}),{gains[i]:g}," for i in range(len(gains) - 1)
+    ]
     tail = f"{gains[-1]:g}*max(0,1-(t-{starts[-1]:.6f})/{fade:.6f})"
     return "".join(parts) + tail + ")" * len(parts)
 
@@ -144,9 +160,20 @@ def build_graph(song: Song) -> str:
     index = {name: i for i, name in enumerate(song.stems_order)}
     ir_index = len(song.stems_order)
     fx = song.effects
-    for key in ("reverb_send", "reverb_hpf", "reverb_wet", "sidechain_threshold",
-                "sidechain_ratio", "sidechain_attack", "sidechain_release",
-                "stereo_width", "bus_threshold", "bus_ratio", "bus_attack", "bus_release"):
+    for key in (
+        "reverb_send",
+        "reverb_hpf",
+        "reverb_wet",
+        "sidechain_threshold",
+        "sidechain_ratio",
+        "sidechain_attack",
+        "sidechain_release",
+        "stereo_width",
+        "bus_threshold",
+        "bus_ratio",
+        "bus_attack",
+        "bus_release",
+    ):
         _need(fx, key, "Effects")
 
     lines: list[str] = []
@@ -155,12 +182,16 @@ def build_graph(song: Song) -> str:
     for stem in song.arranged:
         gains = [section[2][stem] for section in song.sections]
         boost = _need(song.boosts, stem, "Boosts")
-        lines.append(f"[{index[stem]}]volume=volume="
-                     f"'{boost:g}*{_expr(gains, starts, song.fade_bars * bar)}':eval=frame[{stem}v]")
+        lines.append(
+            f"[{index[stem]}]volume=volume="
+            f"'{boost:g}*{_expr(gains, starts, song.fade_bars * bar)}':eval=frame[{stem}v]"
+        )
         lines.append(_pan(stem, f"{stem}v", song.pan))
 
     for stem, level in song.levels.items():
-        lines.append(f"[{index[stem]}]volume={level:g},pan=stereo|c0=0.5*c0|c1=0.5*c0[{stem}]")
+        lines.append(
+            f"[{index[stem]}]volume={level:g},pan=stereo|c0=0.5*c0|c1=0.5*c0[{stem}]"
+        )
 
     low = "".join(f"[{s}]" for s in song.low_bus)
     others = [s for s in song.stems_order if s not in song.low_bus]
