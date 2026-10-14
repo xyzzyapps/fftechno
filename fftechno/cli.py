@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 from . import audio, video
@@ -10,8 +11,18 @@ from . import song as songs
 
 
 def _latest(base: Path) -> Path:
-    """Newest existing file matching *base* or its ``_vN`` versions."""
-    candidates = sorted(base.parent.glob(f"{base.stem}*{base.suffix}"))
+    """Newest existing file matching *base* or its ``_vN`` versions.
+
+    The match is anchored, so a stem that is a prefix of another file's name cannot
+    pick it up by mistake (`techno_visualizer.mp4` must not match
+    `techno_visualizer_720p.mp4`).
+    """
+    name = re.compile(rf"{re.escape(base.stem)}(_v\d+)?{re.escape(base.suffix)}")
+    candidates = [
+        p
+        for p in base.parent.glob(f"{base.stem}*{base.suffix}")
+        if name.fullmatch(p.name)
+    ]
     if not candidates:
         return base
     return max(candidates, key=lambda p: p.stat().st_mtime)
@@ -35,15 +46,24 @@ def _add_song(parser: argparse.ArgumentParser) -> None:
 def _add_look(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--look",
-        choices=("edge", "pollock", "outline"),
+        choices=("edge", "pollock", "outline", "photo"),
         default=None,
-        help="visual style (default: the song's video.md)",
+        help="picture source (default: the song's video.md)",
     )
     parser.add_argument(
         "--mode",
         choices=("reset", "trail", "build"),
         default=None,
         help="Pollock paint accumulation (default: the look's)",
+    )
+
+
+def _add_fx(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--fx",
+        default=None,
+        help="comma-separated effect chain, e.g. 'squares,grain' "
+        "(default: the song's video.md, else the built-in chain)",
     )
 
 
@@ -65,7 +85,7 @@ def main(argv: list[str] | None = None) -> None:
     )
     aud.add_argument(
         "--tts",
-        choices=("kitten", "piper"),
+        choices=("kitten", "piper", "flite"),
         default=None,
         help="vocal TTS engine (default: the song's vocals.md)",
     )
@@ -74,9 +94,10 @@ def main(argv: list[str] | None = None) -> None:
     _add_song(girl)
     _add_look(girl)
 
-    vid = sub.add_parser("video", help="render + mux the dancing-girl video")
+    vid = sub.add_parser("video", help="render + mux the video")
     _add_song(vid)
     _add_look(vid)
+    _add_fx(vid)
     vid.add_argument(
         "--boost",
         type=float,
@@ -92,12 +113,13 @@ def main(argv: list[str] | None = None) -> None:
     both = sub.add_parser("all", help="audio, then the girl loop, then video")
     _add_song(both)
     _add_look(both)
+    _add_fx(both)
     both.add_argument(
         "--safe", action="store_true", help="apply the ear-protection limiter"
     )
     both.add_argument(
         "--tts",
-        choices=("kitten", "piper"),
+        choices=("kitten", "piper", "flite"),
         default=None,
         help="vocal TTS engine (default: the song's vocals.md)",
     )
@@ -113,6 +135,11 @@ def main(argv: list[str] | None = None) -> None:
     lvl.add_argument(
         "factor", type=float, nargs="?", default=2.0, help="gain factor (default 2.0)"
     )
+
+    swp = sub.add_parser(
+        "swap", help="swap in the current master audio (video copied, no re-render)"
+    )
+    _add_song(swp)
 
     syn = sub.add_parser(
         "synth", help="generate filters/<song>/<name>.txt from sounds.md"
@@ -139,6 +166,7 @@ def main(argv: list[str] | None = None) -> None:
                 mode=args.mode,
                 boost=args.boost,
                 static=args.static,
+                fx_chain=args.fx,
             )
         elif args.command == "all":
             wav = audio.build(song, safe=args.safe, tts=args.tts)
@@ -152,10 +180,17 @@ def main(argv: list[str] | None = None) -> None:
                 mode=args.mode,
                 boost=args.boost,
                 static=args.static,
+                fx_chain=args.fx,
             )
         elif args.command == "boost":
             video.re_level(
                 args.factor,
+                song,
+                audio=_latest(song.audio),
+                targets=(_latest(song.master_video), _latest(song.preview_video)),
+            )
+        elif args.command == "swap":
+            video.swap_audio(
                 song,
                 audio=_latest(song.audio),
                 targets=(_latest(song.master_video), _latest(song.preview_video)),

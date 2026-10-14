@@ -68,12 +68,13 @@ Derived: `beat = 60/155 = 0.387097 s`, `step (16th) = 0.096774 s`,
                            v
               master (2-pass loudnorm)  ->  output/<song>/techno.wav
                            v
-              songs/<song>/video.md -> Look -> beat-synced data
+              songs/<song>/video.md -> Look (picture) + effect chain (effects.py)
                            v
               output/<song>/girl_loop.mp4
               + girl_frames.npy  /  girl_sprites.npy + girl_pick.npy
+              + logs/fx.json + logs/fx/<stem>.wav (gain-applied envelopes)
                            v
-              vspipe visualizer.vpy -> ffmpeg -> output/<song>/techno_visualizer.mp4
+              vspipe visualizer.vpy (paint + shader) -> ffmpeg -> techno_visualizer.mp4
 ```
 
 ## 5. Build pipeline
@@ -86,10 +87,11 @@ Commander: every command takes `--song <name>` (default `basement`).
 |---------|--------|
 | `synth --song S` | `songs/S/sounds.md` + `templates/` -> `filters/S/<name>.txt` |
 | `audio --song S [--safe] [--tts kitten\|piper]` | `synth` -> IR -> vocals -> stems -> mix -> master -> `output/S/techno.wav` |
-| `girl --song S [--look edge\|pollock\|outline] [--mode reset\|trail\|build]` | source clip -> look -> `output/S/girl_loop.mp4` + picture data |
-| `video --song S [--look ..] [--mode ..] [--boost F] [--static]` | `girl` -> render -> mux -> 720p preview -> optional re-level |
-| `all --song S [--look ..] [--mode ..] [--safe] [--tts ..] [--boost F] [--static]` | `audio`, then `girl`, then `video` |
+| `girl --song S [--look edge\|pollock\|outline\|photo] [--mode reset\|trail\|build]` | picture source -> look -> `output/S/girl_loop.mp4` + picture data |
+| `video --song S [--look ..] [--fx a,b] [--mode ..] [--boost F] [--static]` | envelopes -> render -> mux -> 720p preview -> optional re-level |
+| `all --song S [--look ..] [--fx a,b] [--mode ..] [--safe] [--tts ..] [--boost F] [--static]` | `audio`, then `girl`, then `video` |
 | `boost F --song S` | re-encode the MP4 audio at gain `F` (video copied) |
+| `swap --song S` | replace the MP4 audio with the current master (video **copied** - the way to apply an audio-only change) |
 
 Filtergraphs are read from files with the ffmpeg 9 syntax `-/filter_complex FILE`
 (the old `-filter_complex_script` was removed).
@@ -113,6 +115,10 @@ sidechain_key: kick     # which stem drives the ducking
 low_bus: reese          # stems grouped and ducked under the key
 ```
 
+The final `Sections` row should be `fade_bars` long: the fade starts at that row's
+first bar and reaches silence `fade_bars` later, so a longer final row leaves the end of
+the track silent (and a shorter one fades before the end).
+
 Tables (all required unless noted):
 
 - **Stems** - `| stem |`; the mix input order (one `-i` per row). Defines which
@@ -120,8 +126,10 @@ Tables (all required unless noted):
 - **Boosts** - `| stem | boost |`; a per-stem gain multiplied over the section gains.
 - **Sections** - `| bars | <stem> | ... |`; rows are bar ranges (`start-end`),
   columns are arranged stems, cells are gains. The last section fades.
-- **Pan** - `| stem | mode | left | right |`; `mode` is `center`, `haas`, or
-  `stereo` (with `left`/`right` gains).
+- **Pan** - `| stem | mode | left | right |`; `mode` is `center`, `haas`,
+  `stereo` (with `left`/`right` gains) or `keep` - a stem that is already stereo
+  (an effect built into its own graph, e.g. the ping-pong blow) is passed through
+  untouched rather than folded to a point.
 - **Effects** - `| effect | value |`; `reverb_send`, `reverb_hpf`, `reverb_wet`,
   `sidechain_threshold/ratio/attack/release`, `stereo_width`,
   `bus_threshold/ratio/attack/release`.
@@ -144,12 +152,14 @@ placeholder fails loudly.
   `if(eq(GRID,0),v0, if(eq(GRID,1),v1, ... , default))`. `seq` is a value (or param
   name), `grid` is an expression, `default` is a param name or a numeric literal.
 - Lists are `|`-separated; inside a markdown table cell the pipe is escaped `\|`.
-- Globals provided: `sr, dur, lp, osr, bar, step, beat, gold, vbase, vamt, grid,
+- Globals are per song (declared at the top of `sounds.md`); the tracks here use
+  combinations of `sr, dur, lp, osr, bar, step, beat, gold, vbase, vamt, grid,
   halfgrid, beatgrid`.
 
 ## 8. Instruments
 
-Seventeen instruments, all parameterised (values in `sounds.md`):
+Seventeen instruments, all parameterised (values in `sounds.md`); template *variants*
+that add per-instrument effects are listed after the table:
 
 | Instrument | Template | Highlights |
 |------------|----------|------------|
@@ -170,11 +180,55 @@ Seventeen instruments, all parameterised (values in `sounds.md`):
 | lead_fm | lead_fm.txt | 2-op FM lead, `notes, gates`, `aphaser` |
 | pad | pad.txt | detuned chord (`n1/n2/n3`), slow swell |
 | stab | stab.txt | short detuned chord stab (`n1/n2/n3, gates`) |
+| blow | blow.txt | a **breath of filtered noise** (a candle puff): `at, period, attack, decay, hp, lp_hi, peak_f/q/g` plus a stereo **ping-pong delay** (`dry_l/r`, `ltaps/ldec`, `rtaps/rdec`) |
+
+**Template variants (per-instrument effects).** The mix-level `Effects` reverb is
+applied to the *whole* mix, so an effect on a single stem is baked into that stem's
+graph instead. `bass.txt` is the analogue bass schematic (`notes`, `amp1/2/3`,
+`decay1/2`, `detune`, `sub_*`) used by the Hardgroove and Minimal tracks. Two
+variants add effects:
+
+- `kick_verb.txt` - `kick.txt` plus a **room send**: the dry kick is split and the
+  wet branch is `aecho` taps (`verb1..3`, `vdec1..3`), high-passed (`verb_hp`) and
+  mixed back at `verb`.
+- `hat_rand.txt` - a **random** 16th-note hat: the noise burst is gated per step by a
+  golden-ratio low-discrepancy sequence, `lt(mod(floor(t/step)*gold_step,1),prob)` -
+  deterministic, so renders stay reproducible, and non-repeating across bars - with
+  per-step velocity from a second sequence (`gold_vel`). The dry hat is split into a
+  **delay** send (`del_ms`, `del_dec` taps) and a **room** send (`room_ms`,
+  `room_dec`), each high-passed and returned at `del_mix`/`room_mix`.
+
+Because `aecho` cannot null its dry path, a send uses a low `in_gain` (`0.1`) so the
+wet branch carries only the tail; a delay with feedback is a multi-tap `aecho`
+(e.g. `450|900|1350`), not a loop.
+
+**Minimal-kit variants.** `hat_step.txt` is a gated noise hat whose hits come from a
+`gates` list and whose accents come from a parallel `vel` list. `ohat_dyn.txt` is an
+open hat with **dynamism**: each hit's *decay* is scaled by
+`dmin + dspan*(0.5+0.5*sin(floor(t/step)*gold2))` and its *velocity* by
+`vbase + vamt*(0.5+0.5*sin(floor(t/step)*gold))`. Both are indexed by the absolute
+16th (`floor(t/step)`), so accents and ring lengths never settle into a fixed bar
+loop - deterministic, but not periodic. `bass.txt` also takes `lp_q`, so its
+low-pass is resonant (`lowpass=f=<lp_bass>:t=q:w=<lp_q>`); Hardgroove supplies
+`lp_q=0.707` (its previous Butterworth response - byte-identical output) while
+Minimal uses `lp_bass=320, lp_q=1.4` for a much deeper, resonant filter.
 
 The **vox** stem is not a template: `fftechno/vox.py` synthesizes short phrases
-with a local neural TTS (Kitten TTS via `kittenml`, or Piper) and places them via
-`filters/<song>/vox.txt`; the same `songs/<song>/vocals.md` times are written to
-`output/<song>/lyrics.json` for the on-screen lyrics.
+with a local TTS and places them via `filters/<song>/vox.txt`; the same
+`songs/<song>/vocals.md` times are written to `output/<song>/lyrics.json` for the
+on-screen lyrics. Three engines exist (chosen by `engine:` in `vocals.md`, or
+`--tts`): **Kitten TTS** (`kittenml` + the nano ONNX model), **Piper**
+(`tools/piper`), and **`flite`** - FFmpeg's own built-in TTS (libflite, voices
+`slt`, `kal`, `kal16`, `rms`, `awb`), which needs no model files or network at all.
+The TTS pads leading silence
+onto every phrase (about 0.65 s for Kitten, 0.15-0.29 s for flite), so `vocals.md`
+can set `trim_lead: 1` to strip it before placement and have the phrase start
+exactly on its time (it has no other effect on the phrase); `minimal`'s parked
+"tick" count-in uses it, and it fixes the same lateness in any song.
+The stem is mixed through the `Levels` table like any other (`vox`), so its timing
+is free of the section automation. A song with no `vox` in its Stems table has no
+vocal: `audio.build` also deletes a stale `lyrics.json`, so the video never draws
+lines for a voice that is not in the mix.
 
 **Losslessness.** The generated graphs reproduce the original hand-authored
 expressions value-for-value (verified: rendering each stem against its original
@@ -187,7 +241,9 @@ differs only by float rounding, <= -213 dB).
 - per arranged stem: `[i]volume=volume='<boost>*<nested if(lt(t,..))>':eval=frame[stemv]`
   followed by a `pan=stereo|...` to `[stem]`; the final section fades over
   `fade_bars`;
-- per `Levels` stem: `[i]volume=<level>,pan=stereo|c0=0.5*c0|c1=0.5*c0[stem]`;
+- per `Levels` stem: `[i]volume=<level>[<stem>v]` followed by that stem's `Pan` row -
+  a non-arranged stem is placed exactly like an arranged one (it used to be folded to
+  mono centre, ignoring the `Pan` table);
 - `[<sidechain_key>]asplit=2[keym][sckey]`;
 - `[<low_bus>]amix=inputs=N:normalize=0[low]`;
 - `[low][sckey]sidechaincompress=threshold=..:ratio=..:attack=..:release=..[lowd]`;
@@ -222,20 +278,28 @@ true peak -1.0 dBFS.
 
 ## 12. Video - `visualizer.vpy`
 
-VapourSynth + vs-placebo. The main visual is the dancing girl: a small piece of
-per-frame data is written into a low-res YUV444P16 clip (960x540), the audio data
-strip (64 bands + bass + kick + energy) into the top rows, and the clip is
-upscaled to 1920x1080. A GLSL shader reads the picture (`HOOKED_tex`), the strip
-and `frame` (time) and applies a kick-synced brightness punch plus a light
-vignette/grain (no overlay); it **preserves chroma** (so the blue hair stays blue)
-and masks the top strip rows black. Output is YUV420P8, piped to ffmpeg by `vspipe -c y4m`.
-`--static` renders a single frozen frame.
+VapourSynth + vs-placebo. The picture is produced by a **source** (`Look`) and an
+ordered **effect chain** (`fftechno/effects.py`, see 12.5). A small piece of
+per-frame data is written into a low-res YUV444P16 clip (960x540), upscaled to
+1920x1080; paint-tier effects draw into that frame and shader-tier effects are
+spliced into a GLSL shader that reads the picture (`HOOKED_tex`), the audio data
+strip and `frame` (time). The shader **preserves chroma** (so the blue hair stays
+blue). Output is YUV420P8, piped to ffmpeg by `vspipe -c y4m`. `--static` renders a
+single frozen frame.
 
-Environment inputs: `FFTECHNO_AUDIO` (the mastered WAV), `FFTECHNO_GIRL_FRAMES`
-(grey frame stack - edge/pollock), `FFTECHNO_GIRL_SPRITES` + `FFTECHNO_GIRL_PICK`
-(RGB sprites + per-frame index - outline), `FFTECHNO_POLLOCK` (paint-accumulation
-mode) and `FFTECHNO_STATIC`. If none is present it falls back to ASCII art of any
-`ascii/*.jpg|png`.
+Environment inputs: `FFTECHNO_AUDIO` (the mastered WAV), `FFTECHNO_W` / `FFTECHNO_H`
+(the output size - a song can be vertical, e.g. `size: 1080x1920` in `video.md`),
+`FFTECHNO_GIRL_FRAMES` (grey frame stack - edge/pollock), `FFTECHNO_GIRL_SPRITES` +
+`FFTECHNO_GIRL_PICK` (RGB sprites + per-frame index - outline/photo),
+`FFTECHNO_POLLOCK` (paint-accumulation mode), `FFTECHNO_FX` (the effect-chain JSON),
+`FFTECHNO_ENV_DIR` (the per-instrument envelopes), `FFTECHNO_ROOT` (so the script can
+import `fftechno.effects`) and `FFTECHNO_STATIC`. With no picture data at all it
+falls back to ASCII art of any `ascii/*.jpg|png`.
+
+The output size drives everything downstream: the picture-data frame is half the
+output (`GW, GH = W/2, H/2`), the audio data strip sits in its top 4 rows, the 720p
+preview keeps the aspect (720x1280 when vertical) and the shader's strip row
+coordinates are built for that height (`assemble_shader(..., height)`).
 
 ### 12.1 Girl pipeline - `fftechno/girl.py` (+ `fftechno/matte.py`)
 
@@ -281,6 +345,70 @@ The visualizer reads `output/<song>/lyrics.json` (`[[text, start], ...]`, writte
 by `vox.py` from the song's `vocals.md`, the same list that places the vocal audio) and
 draws each line for `LYRIC_DUR` seconds near the bottom using a self-contained 5x7
 uppercase bitmap font - no font file, no libass/fontconfig.
+
+### 12.5 Effects - `fftechno/effects.py`
+
+The picture is produced by a **source** (`Look`) plus an ordered **effect chain**:
+
+```
+source  ->  effects (paint: numpy per frame | shader: GLSL per pixel)  ->  encode
+```
+
+An `Effect` declares `name`, `tier`, `uses_strip`, `defaults`, `required_instruments()`,
+`prepare(env, fps)`, `paint(ctx)` and/or `glsl_helpers()` + `glsl_apply()`:
+
+| tier | runs | effects |
+|------|------|---------|
+| `paint` | numpy, per frame, on the 960x540 frame | `squares` |
+| `shader` | GLSL spliced into the vs-placebo shader (1920x1080) | `grain`, `vignette`, `kick_flash`, `kick_glitch` |
+
+The chain is `effects: a, b, c` in `video.md` (comma list, spaces allowed) or
+`--fx a,b` on the CLI; unknown names raise. Per-effect knobs live in the same
+`## Parameters` table (`| name | key | value |`, where *name* is a look **or** an
+effect). The built-in default chain (`kick_flash, vignette, grain, kick_glitch`)
+reproduces the original hand-written shader, so a song that names no effects renders
+as before - verified by frame hash (the only variation is the shader's own grain
+jitter, `<= 4/255`, which predates this and also affects repeat renders).
+
+`assemble_shader()` splices each shader effect's helpers before `hook()` and its
+apply statements inside it, in chain order. The audio data strip - and the row mask
+that hides it - is only emitted when some effect has `uses_strip`, so a strip-less
+chain does not blank the top of the picture.
+
+**Instrument reactivity.** `video.py` asks the chain which instruments it needs
+(`required_instruments`) and bakes each into `logs/fx/<stem>.wav`, applying that
+stem's `Sections` automation from `song.md` (`arrangement.gain_expr`) first - so a
+visual follows the arrangement: the snare's square is absent while its section gain
+is `0.00`. The visualizer loads those as per-frame RMS envelopes
+(`effects.load_envelopes`) and passes them to `prepare()`.
+
+`squares` draws one white outline per instrument - concentric, largest outermost -
+and drives a single parameter each (`ROLES`): size, vertical drift, line thickness,
+rotation, a horizontal knock or a brightness flash. Instruments listed in `circles`
+(`rim` by default) are drawn as a **ring** instead of a square, so the rim shot is a
+circle at the centre of the pattern; a ring pings by growing, since a brightness
+blink would need it to sit below white. `halves` gives the sizes explicitly, in
+instrument order, so a composition can be designed (e.g. put the ring around the
+subject's face with squares both outside and inside it); `skip` leaves instruments
+out (`vox` by default - the voice is already on screen as the lyric). A shape is
+shown only while its instrument is audible: a slow release follower (`presence`
+seconds) is compared against `presence_on`, and while muted the shape is **hidden,
+never dimmed** - the drawn level is `level` (1.0 = pure white). A square can never
+grow past the frame (a cap derived from the smaller dimension), and each shape is
+rasterised inside its own bounding box, so the cost is independent of the frame
+area.
+
+**Picture framing** (`photo`). The still-photo source can either `fit` (keep the
+whole image, letterbox on black - good for a landscape frame) or `fill` (scale to
+cover the frame and centre-crop). `focus` names the vertical fraction of the image that
+must land in the middle of the frame (the subject's nose at `0.324` for `minimal`'s
+current still): the cropped window is symmetric about it and as large as the aspect and
+the image allow, so the framing stays as wide as possible while the chosen point sits at
+the centre - which is also where the ring is drawn. It is how a wide 16:9 still is
+zoomed so a face lands at the centre of the pattern. `shift_x` / `shift_y` nudge the
+subject within the frame, in *output* pixels (positive = right/down), by moving the crop
+window the other way. `crop_bottom` / `crop_right` trim a fraction off the bottom or the
+right first (e.g. a watermark - the current still's sits at x 0.88-0.925 / y 0.843-0.857).
 
 ## 13. Verification and acceptance
 
@@ -345,6 +473,15 @@ guarantees a single writer.
 - **New instrument:** add a `templates/<name>.txt` (with `{{keys}}`), a row in
   `sounds.md`, the name in the `Stems` table, a `Pan` row, a `Boosts` row, and a
   `Sections` column.
+- **New song:** add `songs/<name>/song.md` + `sounds.md` (optionally `vocals.md`,
+  `video.md`); a subclass in `song.py` is optional (a generic `Song` is used).
+- **Per-instrument effect (reverb/delay):** add a template variant that splits the
+  stem and mixes an `aecho` wet branch back in (see `kick_verb.txt`, `hat_rand.txt`).
+- **New visual effect:** add a class in `fftechno/effects.py` (paint tier for
+  geometry, shader tier for per-pixel work) and name it in the song's `video.md`
+  (`effects: squares, grain`); knobs go in that song's `## Parameters` table.
+- **New picture source:** add a `Look` in `fftechno/looks.py` and set `look:` in
+  `video.md` (`edge`, `pollock`, `outline`, `photo`).
 - **New step melody:** use `{{if_steps(seq; grid; default)}}` and a `\|` list.
 - **Mix effects:** the `Effects` table.
 - **Video:** edit `SHADER` in `visualizer.vpy`.
@@ -352,11 +489,13 @@ guarantees a single writer.
 ## 18. File inventory
 
 ```
-songs/<name>/                control surfaces: song.md, sounds.md, vocals.md, video.md
-templates/*.txt              synth schematics (16 used by 17 instruments; some legacy ones remain)
+songs/<name>/                control surfaces: song.md, sounds.md (+ optional
+                             vocals.md, video.md)
+templates/*.txt              synth schematics: 17 instrument templates + variants
+                             (kick_verb, hat_rand) + legacy ones (beeps, growl, rim, tom)
 filters/<name>/*.txt         generated graphs + vox.txt
-fftechno/                    config, song, looks, proc (build lock), audio, synth,
-                             arrangement, vox, girl, matte, video, cli
+fftechno/                    config, song, looks, effects, proc (build lock), audio,
+                             synth, arrangement, vox, girl, matte, video, cli
 visualizer.vpy               the video
 pyproject.toml LICENSE.md README.md SPEC.md TODO.md CHANGELOG.md
 output/<name>/               techno*.wav, techno_visualizer*.mp4, girl_loop*.mp4,
@@ -378,15 +517,30 @@ tools/ ascii/                RVM + voice models + the source clip
 The code is song-agnostic; song data lives in folders and the style-specific video
 code lives in one place.
 
+**Tracks.** `basement` (155 BPM jungle techno, 155 bars, 16 instruments + vox,
+`outline` video), `hardgroove` (140 BPM, 140 bars, 12 instruments, `edge` video) and
+`minimal` (100 BPM, 75 bars = 3:00, Robert-Hood-style: a dry, never-dropping 4-on-4
+kick, closed + dynamic open hats, snare, rim and a one-note bass under a resonant
+low-pass). A single **`blow`** stem - a candle puff of filtered noise
+(`templates/blow.txt`, `period`-repeated) - is panned right and repeats every two bars
+from the 2:00 mark to the end of the track (13 puffs of ~0.26 s), fading with the outro.
+The track is **instrumental**: a "tick" count-in is written in
+`songs/minimal/vocals.md` (engine `flite`) but parked - `vox.py` only renders when
+`vox` is in the song's Stems table, and `audio.build` drops a stale `lyrics.json` so
+the video cannot draw a voice that is not in the mix. Its video is **vertical
+1080x1920**, the still photo framed with `focus` so the subject's nose sits at the
+centre of the pattern, with the `squares, grain` chain.
+
 **Songs** (`fftechno/song.py`). An abstract `Song` exposes a track: paths to its
 four markdown files; its `filters`/`output`/`stems`/`logs` dirs; its parsed
 arrangement; derived `bpm`/`bar`/`duration`; its `vocals()` (TTS engine/voice +
 phrase times) and `video()` (source, crop, look, loop) settings; and per-song
 output paths (`techno.wav`, `techno_visualizer*.mp4`, `girl_*`, `lyrics.json`).
-Concrete songs are thin subclasses (`Basement`, `Hardgroove`) registered in a
-`SONGS` dict; a folder with no subclass still works (a generic `Song`). Adding a
-track = add `songs/<name>/` with the four markdown files (plus, optionally, a
-subclass).
+Concrete songs are thin subclasses (`Basement`, `Hardgroove`, `Minimal`) registered
+in a `SONGS` dict; a folder with no subclass still works (a generic `Song`). Adding a
+track = add `songs/<name>/` with `song.md` and `sounds.md` (`vocals.md`/`video.md`
+are optional - without them the song is instrumental with no video; a subclass is
+optional too).
 
 **Looks** (`fftechno/looks.py`). `girl.py` is a generic pipeline (decode ->
 optional matte -> look -> fit -> emit); a `Look` strategy declares `needs_matte`,

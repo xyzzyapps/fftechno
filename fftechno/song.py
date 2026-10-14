@@ -62,6 +62,7 @@ class Vocals:
 
     engine: str = "kitten"
     voice: str = "Luna"
+    trim_lead: bool = False  # cut the TTS's leading silence before placing
     lines: list[tuple[str, float]] = field(default_factory=list)
 
 
@@ -74,7 +75,20 @@ class Video:
     crop_duration: float = 3.0
     look: str = "outline"
     loop_beats: int | None = None
+    effects: list[str] = field(default_factory=list)  # effect chain (video.md)
+    width: int = 1920  # output size (video.md `size: WxH`), e.g. 1080x1920 vertical
+    height: int = 1080
     params: dict[tuple[str, str], str] = field(default_factory=dict)
+
+    @property
+    def half(self) -> tuple[int, int]:
+        """The picture-data frame (half the output), as ``(width, height)``."""
+        return (self.width // 2, self.height // 2)
+
+    @property
+    def preview(self) -> tuple[int, int]:
+        """A 720p-class preview size for this aspect, as ``(width, height)``."""
+        return (1280, 720) if self.width >= self.height else (720, 1280)
 
     def source_path(self) -> Path:
         p = Path(self.source) if self.source else Path("")
@@ -210,6 +224,7 @@ class Song(ABC):
         return Vocals(
             engine=scalars.get("engine", "kitten"),
             voice=scalars.get("voice", "Luna"),
+            trim_lead=scalars.get("trim_lead", "0").lower() not in ("0", "false", "no"),
             lines=lines,
         )
 
@@ -220,15 +235,35 @@ class Song(ABC):
         text = self.video_md.read_text(encoding="utf-8")
         scalars = _scalars(text)
         params = {}
-        for row in _rows(text, ["look", "key", "value"]):
+        # The parameters table is keyed by look *or* effect name (both live here).
+        for row in _rows(text, ["look", "key", "value"]) or _rows(
+            text, ["name", "key", "value"]
+        ):
             params[(row[0], row[1])] = row[2]
         loop = scalars.get("loop_beats")
+        width, height = C.VIDEO_W, C.VIDEO_H
+        size = scalars.get("size", "")
+        if size:
+            match = re.fullmatch(r"(\d+)[xX](\d+)", size)
+            if not match:
+                raise SystemExit(f"video.md: 'size' must be WxH (got '{size}')")
+            width, height = int(match.group(1)), int(match.group(2))
+        # The effect chain is a comma list and, unlike other scalars, may contain
+        # spaces (`effects: squares, grain`), so read it with its own pattern.
+        chain = re.search(r"^\s*effects\s*:\s*(.+?)\s*$", text, re.MULTILINE)
         return Video(
             source=scalars.get("source", ""),
             crop_start=float(scalars.get("crop_start", 2.0)),
             crop_duration=float(scalars.get("crop_duration", 3.0)),
             look=scalars.get("look", "outline"),
             loop_beats=int(loop) if loop else None,
+            effects=(
+                [e.strip() for e in chain.group(1).split(",") if e.strip()]
+                if chain
+                else []
+            ),
+            width=width,
+            height=height,
             params=params,
         )
 
@@ -254,6 +289,11 @@ class Basement(Song):
 @register
 class Hardgroove(Song):
     name = "hardgroove"
+
+
+@register
+class Minimal(Song):
+    name = "minimal"
 
 
 def names() -> list[str]:

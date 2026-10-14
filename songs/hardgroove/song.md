@@ -110,5 +110,5 @@ or both.
 
 | stem  | level |
 |-------|-------|
-| vox   | 1.5   |
-| beeps | 1.0   |
+| vox   | 0.75  |
+| beeps | 0.5   |

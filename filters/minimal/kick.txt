@@ -1,0 +1,1 @@
+aevalsrc='0.95*(sin(2*PI*(45*mod(t,0.6)+(190/48)*(1-exp(-48*mod(t,0.6)))))*exp(-20*mod(t,0.6))+0.35*sin(2*PI*1100*mod(t,0.6))*exp(-420*mod(t,0.6))+0.6*sin(2*PI*42*mod(t,0.6))*exp(-14*mod(t,0.6))+0.22*(random(0)*2-1)*exp(-260*mod(t,0.6)))':s=192000:d=180[src];[src]equalizer=f=52:t=q:w=1:g=4,asoftclip=type=tanh:threshold=0.85,lowpass=f=19000,aresample=48000[out]

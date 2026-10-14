@@ -34,6 +34,7 @@ import json
 import math
 import os
 import subprocess
+import sys
 import wave
 
 import numpy as np
@@ -54,14 +55,17 @@ IMG_DIR = "ascii"
 # When set (vspipe sees FFTECHNO_STATIC=1) the output is a single frozen frame
 # repeated for the whole duration -> no animation.
 STATIC = os.environ.get("FFTECHNO_STATIC") == "1"
-W, H, FPS = 1920, 1080, 30
-GW, GH = 960, 540                    # low-res clip the girl frames are drawn into
+W = int(os.environ.get("FFTECHNO_W", "1920"))   # output size (per song; vertical ok)
+H = int(os.environ.get("FFTECHNO_H", "1080"))
+FPS = 30
+GW, GH = W // 2, H // 2              # low-res clip the picture is drawn into
 
 NBARS = 64
 CELL = GW // NBARS                   # strip pixels per value (960/64 = 15)
 STRIP_ROWS = 4
 
-GRID_W, GRID_H = 80, 45             # ascii fallback cells
+GRID_W = 80                          # ascii fallback cells
+GRID_H = max(1, round(GRID_W * H / W))
 CELL_W, CELL_H = W // GRID_W, H // GRID_H
 RAMP = " .:-=+*#%@"
 
@@ -159,41 +163,29 @@ def draw_text(luma, text, scale=3, margin=70):
 
 
 # ---------------------------------------------------------------------------
-# GLSL shader (mpv/libplacebo syntax; `frame` + `random` provided by vs-placebo)
+# Effect chain (fftechno/effects.py) -> assembled GLSL shader
+#
+# The chain comes from the song's video.md via logs/fx.json; a song that names no
+# effects gets the built-in chain, which reproduces the original hand-written
+# shader exactly. Paint-tier effects draw per frame in `build_data`; shader-tier
+# effects are spliced into the GLSL below.
 # ---------------------------------------------------------------------------
-SHADER = """
-//!HOOK MAIN
-//!BIND HOOKED
-//!DESC girl outline (no overlay)
+ROOT = os.environ.get("FFTECHNO_ROOT", ".")
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+from fftechno import effects as FX  # noqa: E402  (needs ROOT on sys.path)
 
-#define FPS 30.0
+FX_SPEC = os.environ.get("FFTECHNO_FX", "")
+ENV_DIR = os.environ.get("FFTECHNO_ENV_DIR", "")
+_SPEC: dict = {}
+if FX_SPEC and os.path.exists(FX_SPEC):
+    with open(FX_SPEC, encoding="utf-8") as fh:
+        _SPEC = json.load(fh)
 
-// The audio data strip lives in the top rows of HOOKED (64 values across the
-// width); sample it in normalised coordinates.
-float strip(float idx){ return HOOKED_tex(vec2((idx+0.5)/64.0, 2.0/1080.0)).x; }
-float band(float b){ return strip(b); }
-float aux(float i){ return strip(64.0+i); }
-float hash(float n){ return fract(sin(n)*43758.5453); }
-
-vec4 hook(){
-    // The top rows of HOOKED hold the audio data strip, not picture - hide it.
-    if (HOOKED_pos.y < 9.0/1080.0) return vec4(0.0, 0.0, 0.0, 1.0);
-    float t = float(frame)/FPS;
-    float kick = aux(1.0);
-    vec2 res = target_size;
-    vec2 uv = (HOOKED_pos*res - 0.5*res)/res.y;
-    float r = length(uv);
-
-    vec3 src = HOOKED_tex(HOOKED_pos).rgb;                    // the girl (chroma kept)
-    vec3 col = src * (1.02 + kick*0.9);                       // edges flash on kick
-    col *= 1.0 - 0.35*r;                                      // gentle vignette
-    col += (random - 0.5)*0.03;                               // film grain
-    if(step(0.78, kick) > 0.5){
-        col = col*1.30 + (hash(floor(t*30.0)) - 0.5)*0.12;    // kick glitch
-    }
-    return vec4(col, 1.0);
-}
-"""
+CHAIN = FX.from_spec(_SPEC) if _SPEC else FX.build_chain(list(FX.DEFAULT_CHAIN))
+PAINT = FX.paint_effects(CHAIN)  # drawn per frame
+NEEDS_STRIP = FX.uses_strip(CHAIN)  # is the audio data strip needed at all?
+SHADER = FX.assemble_shader(CHAIN, _SPEC.get("desc", "girl outline (no overlay)"), H)
 
 
 # ---------------------------------------------------------------------------
@@ -305,6 +297,12 @@ def analyse(path):
 A = analyse(AUDIO_PATH)
 NF = A["n_frames"]
 
+# Per-instrument envelopes, for the paint effects that ask for them.
+INSTRUMENTS = list(_SPEC.get("instruments", []))
+ENV = FX.load_envelopes(ENV_DIR, INSTRUMENTS, NF, FPS) if (ENV_DIR and INSTRUMENTS) else {}
+for _effect in PAINT:
+    _effect.prepare(ENV, FPS)
+
 # ---------------------------------------------------------------------------
 # Main visual: the edge-detected dancing girl, looped on the beat grid
 # ---------------------------------------------------------------------------
@@ -406,17 +404,24 @@ def build_data(n, f):
         xs = (np.arange(GW) * (W // GW)).astype(int)
         luma[:] = small[np.ix_(ys, xs)].astype(np.uint16) * 257
         _neutral_chroma(fc)
+    if PAINT:
+        ctx = FX.PaintCtx(luma=luma, u=plane_u16(fc, 1), v=plane_u16(fc, 2),
+                          index=i, fps=FPS, env=ENV)
+        for effect in PAINT:
+            effect.paint(ctx)
     if LYRICS:
         t_now = i / FPS
         for text, start in LYRICS:
             if start <= t_now < start + LYRIC_DUR:
                 draw_text(luma, text)
                 break
-    vals = np.concatenate([A["level"][i], [A["bass"][i], A["kick"][i],
-                                          A["energy"][i]]]).astype(np.float32)
-    for k, v in enumerate(vals):
-        x0 = k * CELL
-        luma[0:STRIP_ROWS, x0:x0 + CELL] = np.uint16(np.clip(v, 0, 1) * 65535)
+    if NEEDS_STRIP:
+        # The audio data strip for the shader (64 values + bass/kick/energy).
+        vals = np.concatenate([A["level"][i], [A["bass"][i], A["kick"][i],
+                                              A["energy"][i]]]).astype(np.float32)
+        for k, v in enumerate(vals):
+            x0 = k * CELL
+            luma[0:STRIP_ROWS, x0:x0 + CELL] = np.uint16(np.clip(v, 0, 1) * 65535)
     return fc
 
 

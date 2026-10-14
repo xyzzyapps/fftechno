@@ -18,6 +18,10 @@ from .song import Song
 
 _KITTEN = None  # cached KittenTTS model (loading is slow)
 
+# Remove the silence the TTS pads onto the front of a phrase, so it can be placed
+# exactly on its time (see `placement_graph`).
+_TRIM_LEAD = "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.005"
+
 
 def _treat(sr: int) -> str:
     """Voice shaping for a source at *sr* Hz: ~ +1.5 semitones (younger /
@@ -62,14 +66,71 @@ def _say_piper(text: str, wav, voice: str) -> int:
     return C.PIPER_SR
 
 
-_ENGINES = {"kitten": _say_kitten, "piper": _say_piper}
+def _wav_rate(path) -> int:
+    """Sample rate of a wav (flite voices differ: kal is 8 kHz, the rest 16 kHz)."""
+    out = subprocess.run(
+        [
+            "ffprobe",
+            "-v",
+            "error",
+            "-select_streams",
+            "a:0",
+            "-show_entries",
+            "stream=sample_rate",
+            "-of",
+            "csv=p=0",
+            str(path),
+        ],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+    return int(out)
 
 
-def placement_graph(lines: list[tuple[str, float]], sr: int, duration: float) -> str:
-    """The ``-filter_complex`` body placing each line (one input per line)."""
+def _say_flite(text: str, wav, voice: str) -> int:
+    """FFmpeg's built-in TTS (libflite) - no model files, no network.
+
+    Voices: ``slt`` (female), ``kal`` / ``kal16`` (male, 8 kHz), ``rms``, ``awb``.
+    Like every TTS it pads leading silence, so ``trim_lead`` still applies."""
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-hide_banner",
+            "-v",
+            "error",
+            "-y",
+            "-f",
+            "lavfi",
+            "-i",
+            f"flite=text='{text}':voice={voice}",
+            "-ac",
+            "1",
+            "-c:a",
+            "pcm_s16le",
+            str(wav),
+        ],
+        check=True,
+    )
+    return _wav_rate(wav)
+
+
+_ENGINES = {"kitten": _say_kitten, "piper": _say_piper, "flite": _say_flite}
+
+
+def placement_graph(
+    lines: list[tuple[str, float]], sr: int, duration: float, trim_lead: bool = False
+) -> str:
+    """The ``-filter_complex`` body placing each line (one input per line).
+
+    The TTS pads leading silence onto every phrase (about 0.65 s for Kitten), so
+    without *trim_lead* a phrase sounds that much after its ``time``. With it the
+    silence is removed first, so the phrase starts exactly on its time.
+    """
     treat = _treat(sr)
+    head = f"{_TRIM_LEAD}," if trim_lead else ""
     parts = [
-        f"[{k}]{treat},adelay={round(t * 1000)}:all=1[d{k}]"
+        f"[{k}]{head}{treat},adelay={round(t * 1000)}:all=1[d{k}]"
         for k, (_text, t) in enumerate(lines)
     ]
     mixes = "".join(f"[d{k}]" for k in range(len(lines)))
@@ -110,7 +171,7 @@ def render(song: Song, engine: str | None = None) -> None:
     inputs: list[str] = []
     for text, _t in vocals.lines:
         inputs += ["-i", str(wavs[text])]
-    graph = placement_graph(vocals.lines, sr, song.duration)
+    graph = placement_graph(vocals.lines, sr, song.duration, vocals.trim_lead)
     (song.filters / "vox.txt").write_text(graph, encoding="utf-8")
     ffmpeg(
         [

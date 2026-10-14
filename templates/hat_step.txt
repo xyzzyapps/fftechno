@@ -1,0 +1,1 @@
+aevalsrc='{{amp}}*(random(0)*2-1)*exp(-{{decay}}*mod(t,{{step}}))*{{if_steps(gates; grid; 0)}}*{{if_steps(vel; grid; 1)}}':s={{sr}}:d={{dur}}[src];[src]highpass=f={{hp}},lowpass=f={{lp}},aresample={{osr}}[out]

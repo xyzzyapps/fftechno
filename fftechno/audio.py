@@ -37,7 +37,12 @@ def make_ir(song: Song) -> None:
 
 
 def render_stems(song: Song, names) -> None:
-    """Render each synth (``filters/<song>/<name>.txt``) to ``stems/<name>.wav``."""
+    """Render each synth (``filters/<song>/<name>.txt``) to ``stems/<name>.wav``.
+
+    The output is cut at the song's duration: a template whose graph adds a tail (a
+    delay, e.g. the blow's ping-pong) would otherwise stretch the stem past the song
+    and with it the whole mix.
+    """
     song.stems.mkdir(parents=True, exist_ok=True)
     for name in names:
         ffmpeg(
@@ -47,6 +52,8 @@ def render_stems(song: Song, names) -> None:
                 str(song.filters / f"{name}.txt"),
                 "-map",
                 "[out]",
+                "-t",
+                f"{song.duration:g}",
                 "-c:a",
                 "pcm_f32le",
                 song.stems / f"{name}.wav",
@@ -148,6 +155,10 @@ def build(song: Song, safe: bool = False, tts: str | None = None) -> Path:
     make_ir(song)
     if "vox" in song.arrangement().stems:
         vox.render(song, engine=tts)
+    elif song.lyrics.exists():
+        # No vocal stem: drop the lyrics of an earlier version, or the video would
+        # still draw on-screen lines for a voice that is no longer in the mix.
+        song.lyrics.unlink()
     render_stems(song, names)
     mix(song)
     return master(song, safe=safe)

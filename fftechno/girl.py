@@ -15,7 +15,7 @@ from pathlib import Path
 import numpy as np
 
 from . import config as C
-from .looks import fit, get_look
+from .looks import get_look
 from .proc import ffmpeg
 from .song import Song
 
@@ -57,19 +57,27 @@ def _probe(path: Path) -> tuple[int, int, float]:
     return int(w), int(h), float(num) / float(den or 1)
 
 
+_STILL = {".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"}
+
+
+def _window(src: Path, video) -> tuple[float, float]:
+    """Decode window for *src*: a still has no timeline, so no seek/limit."""
+    if src.suffix.lower() in _STILL:
+        return 0.0, 0.0
+    return video.crop_start, video.crop_duration
+
+
 def _decode_crop(
     src: Path, vf: str, pix: str, w: int, h: int, start: float, dur: float
 ) -> np.ndarray:
+    seek = ["-ss", str(start), "-t", str(dur)] if dur else []
     raw = subprocess.run(
         [
             "ffmpeg",
             "-hide_banner",
             "-v",
             "error",
-            "-ss",
-            str(start),
-            "-t",
-            str(dur),
+            *seek,
             "-i",
             str(src),
             "-vf",
@@ -101,7 +109,8 @@ def _loop_frames(song: Song) -> int:
     return max(1, round(8 * beat * C.VIDEO_FPS))
 
 
-def _encode_rgb(frames: np.ndarray, out: Path) -> None:
+def _encode_rgb(frames: np.ndarray, out: Path, size: tuple[int, int]) -> None:
+    """Encode RGB frames to H.264 at *size* (the caller chooses the output path)."""
     h, w = frames.shape[1:3]
     subprocess.run(
         [
@@ -121,7 +130,7 @@ def _encode_rgb(frames: np.ndarray, out: Path) -> None:
             "-i",
             "-",
             "-vf",
-            f"scale={C.VIDEO_W}:{C.VIDEO_H}:flags=lanczos",
+            f"scale={size[0]}:{size[1]}:flags=lanczos",
             "-c:v",
             "libx264",
             "-preset",
@@ -149,12 +158,14 @@ def build(
     Returns ``(loop_mp4, data_npy)``; the MP4 gets a versioned name. ``mode`` is
     only a passthrough hint for the visualizer (see ``video.md``/``--mode``)."""
     video = song.video()
+    fw, fh = video.half
     look_name = look or video.look
     look_obj = get_look(
         look_name, {k[1]: v for k, v in video.params.items() if k[0] == look_name}
     )
     src = source_clip(song)
     w, h, fps = _probe(src)
+    start, dur = _window(src, video)
     song.logs.mkdir(parents=True, exist_ok=True)
 
     if look_obj.emits == "sprites":
@@ -164,9 +175,7 @@ def build(
     if look_obj.needs_matte:
         from .matte import RVMMatte
 
-        rgb = _decode_crop(
-            src, f"scale={w}:{h}", "rgb24", w, h, video.crop_start, video.crop_duration
-        )
+        rgb = _decode_crop(src, f"scale={w}:{h}", "rgb24", w, h, start, dur)
         model = RVMMatte(C.GIRL_MODEL, downscale=C.GIRL_MATTE_DOWNSCALE)
         grey = np.zeros(rgb.shape[:3], np.uint8)
         for i, frame in enumerate(rgb):
@@ -182,8 +191,8 @@ def build(
             "gray",
             w,
             h,
-            video.crop_start,
-            video.crop_duration,
+            start,
+            dur,
         )[..., 0]
     if grey.shape[0] == 0:
         raise SystemExit(f"could not decode any frames from {src}")
@@ -212,7 +221,7 @@ def build(
             "error",
             *base,
             "-filter_complex",
-            look_obj.stack_filter(C.GIRL_FRAME_W, C.GIRL_FRAME_H),
+            look_obj.stack_filter(fw, fh),
             "-map",
             "[out]",
             "-frames:v",
@@ -226,9 +235,7 @@ def build(
         capture_output=True,
     )
     buf = np.frombuffer(proc.stdout, np.uint8)
-    stack = buf[: n_frames * C.GIRL_FRAME_H * C.GIRL_FRAME_W].reshape(
-        n_frames, C.GIRL_FRAME_H, C.GIRL_FRAME_W
-    )
+    stack = buf[: n_frames * fh * fw].reshape(n_frames, fh, fw)
     np.save(song.girl_frames, stack)
 
     loop = C.unique_path(song.girl_loop)
@@ -237,7 +244,7 @@ def build(
             "-y",
             *base,
             "-filter_complex",
-            look_obj.loop_filter(C.VIDEO_W, C.VIDEO_H),
+            look_obj.loop_filter(video.width, video.height),
             "-map",
             "[out]",
             "-frames:v",
@@ -266,23 +273,27 @@ def _largest(shape, alpha):
 
 
 def _build_sprites(song: Song, look_obj, src: Path) -> tuple[Path, Path]:
-    """Sprite looks (outline): fitted RGB -> sprites + beat-synced pick."""
-    from .matte import RVMMatte
-
+    """Sprite looks (outline, photo): fitted RGB -> sprites + beat-synced pick."""
     video = song.video()
+    fw, fh = video.half
+    start, dur = _window(src, video)
     frames = _decode_crop(
         src,
-        fit(C.GIRL_FRAME_W, C.GIRL_FRAME_H),
+        look_obj.decode_filter(fw, fh),
         "rgb24",
-        C.GIRL_FRAME_W,
-        C.GIRL_FRAME_H,
-        video.crop_start,
-        video.crop_duration,
+        fw,
+        fh,
+        start,
+        dur,
     )
     if frames.shape[0] == 0:
         raise SystemExit(f"could not decode any frames from {src}")
-    model = RVMMatte(C.GIRL_MODEL, downscale=C.GIRL_MATTE_DOWNSCALE)
-    sprites = look_obj.sprites(frames, model.matte)
+    model = None
+    if look_obj.needs_matte:
+        from .matte import RVMMatte
+
+        model = RVMMatte(C.GIRL_MODEL, downscale=C.GIRL_MATTE_DOWNSCALE)
+    sprites = look_obj.sprites(frames, model.matte if model else None)
     np.save(song.girl_sprites, sprites)
 
     # Beat-synced random picks across the whole track (deterministic).
@@ -298,5 +309,7 @@ def _build_sprites(song: Song, look_obj, src: Path) -> tuple[Path, Path]:
 
     n_loop = _loop_frames(song)
     loop = C.unique_path(song.girl_loop)
-    _encode_rgb(sprites[np.load(song.girl_pick)[:n_loop]], loop)
+    _encode_rgb(
+        sprites[np.load(song.girl_pick)[:n_loop]], loop, (video.width, video.height)
+    )
     return loop, song.girl_sprites

@@ -144,8 +144,26 @@ def _expr(gains: list[float], starts: list[float], fade: float) -> str:
     return "".join(parts) + tail + ")" * len(parts)
 
 
+def gain_expr(parsed: Song, stem: str) -> str:
+    """The section-automation expression for *stem* (the same one the mix uses).
+
+    The video pipeline applies this to a stem *before* the visualizer analyses it,
+    so a visual follows the arrangement: a stem is silent while its section gain
+    is `0.00`, while its own timing still comes from its synth graph.
+    """
+    if stem not in parsed.arranged:
+        raise SystemExit(f"song.md: '{stem}' is not in the Sections table")
+    gains = [section[2][stem] for section in parsed.sections]
+    starts = [lo * parsed.bar_seconds for lo, _hi, _ in parsed.sections]
+    return _expr(gains, starts, parsed.fade_bars * parsed.bar_seconds)
+
+
 def _pan(stem: str, src: str, pan: dict[str, tuple]) -> str:
     placement = _need(pan, stem, "Pan")
+    if placement[0] == "keep":
+        # The stem is already stereo (an effect in its own graph, e.g. a ping-pong
+        # delay) - pass it through instead of folding it to a point.
+        return f"[{src}]acopy[{stem}]"
     if placement[0] == "center":
         return f"[{src}]pan=stereo|c0=c0|c1=c0[{stem}]"
     if placement[0] == "haas":
@@ -189,9 +207,10 @@ def build_graph(song: Song) -> str:
         lines.append(_pan(stem, f"{stem}v", song.pan))
 
     for stem, level in song.levels.items():
-        lines.append(
-            f"[{index[stem]}]volume={level:g},pan=stereo|c0=0.5*c0|c1=0.5*c0[{stem}]"
-        )
+        # A Levels stem is placed by its Pan row like any arranged stem (it used to
+        # be folded to mono centre, which ignored the table).
+        lines.append(f"[{index[stem]}]volume={level:g}[{stem}v]")
+        lines.append(_pan(stem, f"{stem}v", song.pan))
 
     low = "".join(f"[{s}]" for s in song.low_bus)
     others = [s for s in song.stems_order if s not in song.low_bus]
