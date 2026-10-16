@@ -1,0 +1,8 @@
+amovie=samples/breaks/amen.wav[s];
+[s]asplit=4[s0][s1][s2][s3];
+[s0]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,asetrate=38880,aresample=48000,atrim=0:5.4545,asetpts=N/SR/TB,volume=0.75,adelay=0:all=1[h0];
+[s1]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,asetrate=38880,aresample=48000,atrim=0:5.4545,asetpts=N/SR/TB,volume=0.75,adelay=5454.545454545454:all=1[h1];
+[s2]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,asetrate=38880,aresample=48000,atrim=0:5.4545,asetpts=N/SR/TB,volume=0.75,adelay=10909.090909090908:all=1[h2];
+[s3]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,asetrate=38880,aresample=48000,atrim=0:5.4545,asetpts=N/SR/TB,volume=0.75,adelay=16363.636363636362:all=1[h3];
+aevalsrc='0':s=48000:d=21.818181818182,aformat=sample_fmts=fltp:channel_layouts=mono[bed];
+[h0][h1][h2][h3][bed]amix=inputs=5:normalize=0:duration=longest,asoftclip=type=tanh:threshold=0.9[out]

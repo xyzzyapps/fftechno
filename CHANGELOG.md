@@ -1,6 +1,16 @@
 # Changelog
 
 ## Unreleased
+- **Sample-based songs.** A song can make sound from audio files instead of `aevalsrc`
+  oscillators. `samples/manifest.md` (tracked) lists every sample with URL and licence;
+  `python -m fftechno samples` downloads and normalises them to 48 kHz PCM
+  (`fftechno/samples.py`; the wavs are gitignored). A `## Samplers` table in `sounds.md`
+  (`name | sample | params`) becomes a generated graph (`fftechno/sampler.py`) that reads
+  the file with `amovie`, fans it with `asplit` and places each hit with an absolute
+  `adelay`, so it flows through the normal stems -> mix -> master pipeline. `proc.run`
+  gained a `cwd`, and `render_stems` runs ffmpeg from the repo root so the repo-relative
+  `samples/...` path resolves. New song `triphop_samples` (88 BPM, 8 bars): the TR-909 SP
+  kit over a slowed Amen break. Additive - existing songs' filters are unchanged.
 - **Clocks come from `song.md`.** `bar`, `step`, `beat` and `dur` are computed from
   `bpm` and `bars` when `sounds.md` is rendered. A copy of those four names in
   `sounds.md` fails the build. Other scalars may use `{{bar}}`, `{{step}}` and

@@ -1,10 +1,11 @@
 # fftechno - status
 
-Songs under `songs/` (all sound synthesized by ffmpeg), driven by markdown:
-**basement** (155 BPM jungle techno), **hardgroove** (140 BPM), **minimal**
-(100 BPM, 7 stems, 1920x1080 `photo` video) and **triphop** (84 BPM, audio only).
-**triphop_beat** is an 8-bar scratch at 88 BPM. A folder is the song. There is
-no song subclass.
+Songs under `songs/`, driven by markdown: **basement** (155 BPM jungle techno),
+**hardgroove** (140 BPM), **minimal** (100 BPM, 7 stems, 1920x1080 `photo` video),
+**triphop** (84 BPM, audio only) and **triphop_samples** (88 BPM, the first
+**sample-based** track: a downloaded drum kit + the Amen break). **triphop_beat** is
+an 8-bar synthesised scratch at 88 BPM. A folder is the song. There is no song
+subclass.
 
 ## Done
 
@@ -214,3 +215,36 @@ SPEC.md 12.5. Notes kept for reference:
 ## Known issues
 
 - The `edge` look needs the RVM model; the `pollock` look does not.
+
+## Done - sample-based trip-hop beat (`songs/triphop_samples/`)
+
+The first **sample-based** song: real audio files instead of `aevalsrc` oscillators.
+
+- **Samples store** (`samples/manifest.md`, tracked; the wavs are gitignored):
+  `python -m fftechno samples` downloads and normalises each file to 48 kHz PCM
+  (`fftechno/samples.py`). Sets: `triphop_kit` (TR-909 SP, oramics/sampled) and
+  `breaks/amen.wav` (schollz/amen, MIT).
+- **Sampler instruments** (`fftechno/sampler.py`): a `## Samplers` table in
+  `sounds.md` (`name | sample | params`). `synth.generate` writes a graph that reads
+  the file with `amovie`, fans it out with `asplit` and places each hit with an
+  **absolute** `adelay` (`pat` = per-bar 16th pattern, `hits` = absolute steps,
+  `rate` varispeed, `trim`, `vel`, `gain`). `render_stems` now runs ffmpeg from the
+  repo root so the repo-relative `samples/...` path resolves (`proc.run(cwd=...)`).
+- **New song** `songs/triphop_samples/`: 88 BPM, 8 bars. TR-909 SP kit over the Amen
+  break slowed to `rate=0.81`. Onsets land on the grid (+/- 0.3 ms); master is
+  21.818 s, -13.1 LUFS, -1.0 dBTP.
+- **Additive verified:** `synth --song minimal` and `--song basement` produce no diff
+  (existing `filters/` unchanged). Docs: README + SPEC 21.
+- **Not used:** loop filters. `aloop` drifts at this grid, so hits are placed with
+  absolute delays (a long song means one filter chain per hit).
+
+### Optional next (samplers)
+
+- Loop a one-bar pattern without per-hit expansion (a two-stage build: render the bar
+  to a wav, then `amovie` it) - needed before a 4-minute sample song.
+- Keep the Amen break stereo (the sampler folds everything to mono today).
+- A `Sends` table so a sampler stem can hit the project reverb/delay.
+- Re-encode the `## Samplers` graph so a *missing* sample file fails with the exact
+  row, not a filter error (e.g. `rim`/`snare-short` are fetched but unused).
+- `fftechno/md.py` is not black-clean under the installed black (pre-existing, not
+  touched here); `task lint` will flag it.

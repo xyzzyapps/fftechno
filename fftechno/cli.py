@@ -146,7 +146,23 @@ def main(argv: list[str] | None = None) -> None:
     )
     _add_song(syn)
 
+    smp = sub.add_parser(
+        "samples", help="download + normalise the sample sets under samples/"
+    )
+    smp.add_argument(
+        "--force",
+        action="store_true",
+        help="re-download and re-normalise everything (default: only what is missing)",
+    )
+
     args = parser.parse_args(argv)
+
+    if args.command == "samples":
+        from . import samples as samples_mod
+
+        samples_mod.run(force=args.force)
+        return
+
     from .proc import build_lock
 
     song = songs.load(args.song)

@@ -9,6 +9,10 @@ every placeholder must be supplied, otherwise generation fails loudly.
 computed from ``song.md`` (``bpm`` and ``bars``) and may be referenced as
 ``{{bar}}``, ``{{step}}`` and ``{{beat}}`` inside other scalars.
 
+A ``## Samplers`` table (``name | sample | params``) declares sample-based
+instruments instead of oscillator templates; ``sampler.graph`` turns each into a
+filter graph that plays an audio file on the step grid (see ``sampler.py``).
+
 Template language
 -----------------
 ``{{ key }}``                    value substitution
@@ -22,6 +26,7 @@ from __future__ import annotations
 import re
 
 from . import config as C
+from . import sampler as _sampler
 from .md import rows, scalars
 
 _PLACEHOLDER = re.compile(r"\{\{\s*([A-Za-z0-9_]+)\s*\}\}")
@@ -134,6 +139,11 @@ def generate(song) -> list[str]:
         body = _render(
             (C.TEMPLATES / template).read_text(encoding="utf-8"), values, name
         )
+        (song.filters / f"{name}.txt").write_text(body, encoding="utf-8")
+        written.append(name)
+    # Sample-based instruments: their graph is generated, not a template.
+    for name, sample, params in rows(text, ["name", "sample", "params"]):
+        body = _sampler.graph(song, sample, params)
         (song.filters / f"{name}.txt").write_text(body, encoding="utf-8")
         written.append(name)
     return written

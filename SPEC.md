@@ -25,10 +25,10 @@ The voice is synthesised with a local neural TTS - **Kitten TTS** (`kittenml`) b
 default, **Piper**, or ffmpeg **flite** - all offline.
 
 In scope: `aevalsrc`-based synthesis, drum/gate patterns, mix automation, side-chain,
-convolution reverb, two-pass loudness mastering, an RVM / `edgedetect` / silhouette
-video with on-screen lyrics, and a reproducible build.
+convolution reverb, two-pass loudness mastering, **sample playback** (section 21), an
+RVM / `edgedetect` / silhouette video with on-screen lyrics, and a reproducible build.
 
-Out of scope: real-time performance, a GUI, MIDI import, sample playback.
+Out of scope: real-time performance, a GUI, MIDI import.
 
 ## 2. Glossary
 
@@ -86,7 +86,8 @@ Commander: every command takes `--song <name>` (default `basement`).
 
 | Command | Phases |
 |---------|--------|
-| `synth --song S` | `songs/S/sounds.md` + `templates/` -> `filters/S/<name>.txt` |
+| `synth --song S` | `songs/S/sounds.md` + `templates/` -> `filters/S/<name>.txt` (oscillator templates and sampler graphs) |
+| `samples [--force]` | `samples/manifest.md` -> download + normalise the files under `samples/` (no `--song`) |
 | `audio --song S [--safe] [--tts kitten\|piper]` | `synth` -> IR -> vocals -> stems -> mix -> master -> `output/S/techno.wav` |
 | `girl --song S [--look edge\|pollock\|outline\|photo] [--mode reset\|trail\|build]` | picture source -> look -> `output/S/girl_loop.mp4` + picture data |
 | `video --song S [--look ..] [--fx a,b] [--mode ..] [--boost F] [--static]` | envelopes -> render -> mux -> 720p preview -> optional re-level |
@@ -167,6 +168,11 @@ placeholder fails loudly.
   beatgrid`, plus song-local clocks such as `bgrid` and `cgrid`. An instrument
   parameter of the same name wins over an injected clock (`beat=` on a hardgroove
   drum).
+
+A second, optional table - **Samplers** (`| name | sample | params |`) - declares
+**sample-based** instruments instead of oscillator templates: each row names a file
+under `samples/` played on the 16th grid. A song may have an Instruments table, a
+Samplers table, or both; see section 21.
 
 ## 8. Instruments
 
@@ -494,6 +500,11 @@ guarantees a single writer.
 - **New instrument:** add a `templates/<name>.txt` (with `{{keys}}`), a row in
   `sounds.md`, the name in the `Stems` table, a `Pan` row, and either a `Boosts`
   row plus a `Sections` column, or a `Levels` row.
+- **New sampler (sample-based instrument):** fetch the sample
+  (`python -m fftechno samples`, section 21), add a row to the song's `## Samplers`
+  table (`name | sample | params`), then list the name in `Stems` with a `Pan` row
+  and a `Boosts`+`Sections` (or `Levels`) entry - the mix side is identical to a synth
+  stem.
 - **New song:** add `songs/<name>/song.md` and `sounds.md` (optionally `vocals.md`,
   `video.md`). A folder is the song. There is no subclass and no registry.
 - **Per-instrument effect (reverb/delay):** add a template variant that splits the
@@ -518,7 +529,10 @@ templates/*.txt              synth schematics: the techno set, its variants
                              (sax, rhodes, beeps, growl, rim, tom)
 filters/<name>/*.txt         generated graphs + vox.txt
 fftechno/                    config, md, song, looks, effects, proc (build lock),
-                             audio, synth, arrangement, vox, girl, matte, video, cli
+                             audio, synth, sampler, samples, arrangement, vox, girl,
+                             matte, video, cli
+samples/                     manifest.md (tracked) + downloaded sample sets
+                             (gitignored): triphop_kit/, breaks/
 visualizer.vpy               the video
 pyproject.toml LICENSE.md README.md SPEC.md TODO.md CHANGELOG.md
                              AEVAL_TUTORIAL.md (the aevalsrc/aeval guide)
@@ -558,6 +572,9 @@ chain. `triphop` (84 BPM, 84 bars = 4:00, instrumental, audio only) uses kick,
 brk, roll, sub, ep, strings, bell, stab, horn, rise and vinyl. The side-chain key
 is kick and the low bus is sub. The master on disk is `output/triphop/techno_v4.wav`.
 `triphop_beat` is an 88 BPM, 8-bar scratch (kick, break, bass), not the 4-minute song.
+`triphop_samples` is the **sample-based** counterpart: 88 BPM, 8 bars, the TR-909 SP
+kit (`samples/triphop_kit/`) under a slowed Amen break (`samples/breaks/amen.wav` at
+`rate=0.81`) - see section 21.
 
 **Songs** (`fftechno/song.py`). `Song(name)` exposes a track: paths to its four
 markdown files; its `filters`/`output`/`stems`/`logs` dirs; its parsed
@@ -579,3 +596,55 @@ and/or `sprites(frames, model)`. Four are registered: `edge`, `pollock`,
 
 `templates/`, `filters/<song>/`, `visualizer.vpy` and the models in `tools/` are
 shared across every song.
+
+## 21. Sample-based songs - `samples/` + `fftechno/sampler.py`
+
+A song can make its sound from **audio files** instead of `aevalsrc` oscillators. This
+section is the whole of the sample support.
+
+**The store.** `samples/manifest.md` (tracked) lists every sample as
+`| set | file | url | license |`. `python -m fftechno samples` downloads the missing
+files to `samples/<set>/<file>` and normalises each to a 48 kHz PCM WAV (which also
+removes the malformed trailing packet some 24-bit sources carry - the cause of the
+benign `Invalid PCM packet` log line). The downloaded files are **not** committed
+(`.gitignore` keeps only `manifest.md`); a clone reproduces them from the manifest.
+`fftechno/samples.py` holds `fetch`/`prepare`/`run`.
+
+**The instrument.** A `## Samplers` table in `sounds.md` (`| name | sample | params |`)
+names a sample and how it plays. `synth.generate` calls
+`sampler.graph(song, sample, params)` and writes `filters/<song>/<name>.txt` - the same
+node type as a synth stem, so `audio.render_stems` -> mix -> master is unchanged.
+
+The generated graph reads the file with the `amovie` source filter (a `filter_complex`
+source, so no `-i` is needed), fans it out with `asplit` (one branch per hit) and places
+each copy on the grid with `adelay`; `amix` (with a silent bed of the full song length)
+sums them, so the stem is always exactly `song.duration`. Because `render_stems` passes
+**repo-relative** `samples/...` paths to `amovie`, it runs ffmpeg with the repo root as
+its working directory (`proc.run(cwd=...)`); otherwise the path would not resolve.
+
+Parameters (comma separated `key=value`):
+
+| key | meaning |
+|-----|---------|
+| `pat` | 16th steps (0-15) inside one bar, repeated on every bar |
+| `hits` | absolute 16th steps from the song start (sparse sounds, e.g. a break every two bars) |
+| `vel` | per-hit velocity, parallel to `pat`/`hits` |
+| `trim` | seconds each copy plays (default: the whole file) |
+| `rate` | `asetrate` varispeed factor (below 1 = slower and lower) |
+| `tempo` | `atempo` factor (changes speed, keeps pitch) |
+| `gain` | per-instrument gain |
+
+Use `pat` **or** `hits`, not both. Every hit is placed by an **absolute** `adelay`
+(milliseconds), so there is no cumulative drift and the onsets land on the grid
+(measured within ~0.3 ms). Loop filters (`aloop`) are deliberately *not* used - they
+proved unreliable at this grid. The one cost is that a long song expands to one filter
+chain per hit (`bars` x hits per bar): fine for a beat, a note for a 4-minute track.
+
+Example (`songs/triphop_samples/sounds.md`):
+
+```
+| name | sample                             | params |
+|------|------------------------------------|--------|
+| kick | samples/triphop_kit/kick.wav       | pat=0\|6\|10, gain=1.0, trim=0.6 |
+| brk  | samples/breaks/amen.wav            | hits=0\|32\|64\|96, rate=0.81, gain=0.75, trim=5.4545 |
+```

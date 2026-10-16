@@ -57,7 +57,10 @@ def render_stems(song: Song, names) -> None:
                 "-c:a",
                 "pcm_f32le",
                 song.stems / f"{name}.wav",
-            ]
+            ],
+            # Sample stems reference their source with a repo-relative path
+            # (`amovie=samples/...`), so ffmpeg must run from the repo root.
+            cwd=C.ROOT,
         )
 
 

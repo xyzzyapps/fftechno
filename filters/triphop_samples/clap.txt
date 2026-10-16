@@ -1,0 +1,12 @@
+amovie=samples/triphop_kit/clap.wav[s];
+[s]asplit=8[s0][s1][s2][s3][s4][s5][s6][s7];
+[s0]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.4,asetpts=N/SR/TB,volume=0.55,adelay=2045.454545454545:all=1[h0];
+[s1]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.4,asetpts=N/SR/TB,volume=0.55,adelay=4772.727272727272:all=1[h1];
+[s2]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.4,asetpts=N/SR/TB,volume=0.55,adelay=7499.999999999999:all=1[h2];
+[s3]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.4,asetpts=N/SR/TB,volume=0.55,adelay=10227.272727272726:all=1[h3];
+[s4]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.4,asetpts=N/SR/TB,volume=0.55,adelay=12954.545454545454:all=1[h4];
+[s5]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.4,asetpts=N/SR/TB,volume=0.55,adelay=15681.81818181818:all=1[h5];
+[s6]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.4,asetpts=N/SR/TB,volume=0.55,adelay=18409.090909090908:all=1[h6];
+[s7]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.4,asetpts=N/SR/TB,volume=0.55,adelay=21136.363636363636:all=1[h7];
+aevalsrc='0':s=48000:d=21.818181818182,aformat=sample_fmts=fltp:channel_layouts=mono[bed];
+[h0][h1][h2][h3][h4][h5][h6][h7][bed]amix=inputs=9:normalize=0:duration=longest,asoftclip=type=tanh:threshold=0.9[out]

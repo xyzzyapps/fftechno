@@ -22,3 +22,5 @@ output/_probe/
 /*.jpeg
 /*.webp
 /*.gif
+samples/*
+!samples/manifest.md
