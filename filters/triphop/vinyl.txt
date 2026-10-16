@@ -1,0 +1,1 @@
+aevalsrc='0.22*(0.65*(random(0)*2-1)+0.85*(random(1)*2-1)*gt(random(2),0.9999972))*(0.9+0.1*(0.5+0.5*sin(2*PI*0.35*t)))':s=192000:d=240[src];[src]highpass=f=1800,lowpass=f=8000,equalizer=f=3200:t=q:w=1:g=3,lowpass=f=16000,aresample=48000[out]

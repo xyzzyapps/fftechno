@@ -1,0 +1,1 @@
+aevalsrc='0.5*(random(0)*2-1)*exp(-16*mod(t+0.340909,0.681818))*if(lt(mod(t+0.340909,0.681818),0.22),1,0)':s=192000:d=240[src];[src]highpass=f=6500,lowpass=f=19000,aresample=48000[out]

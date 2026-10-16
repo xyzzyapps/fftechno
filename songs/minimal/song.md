@@ -105,6 +105,6 @@ Global mix effect parameters (all optional; defaults used if a row is omitted).
 
 ## Levels
 
-No stem uses a fixed level: the five `blow` puffs are section-arranged (so their last
-ones fade with the track) and everything else is too. The track is instrumental: no
+No stem uses a fixed level. The one `blow` stem is section-arranged, so its last
+puffs fade with the track, and everything else is too. The track is instrumental: no
 `vox` stem (see `vocals.md`, kept for when the ticks come back).

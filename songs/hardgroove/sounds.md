@@ -1,24 +1,21 @@
 # fftechno - synth definitions
 
 `python -m fftechno synth` renders each instrument below into `filters/<name>.txt`
-by plugging these values into `templates/<template>`. There are no defaults: every
-placeholder an instrument uses must be defined by the globals here or its own
-`parameters`.
+by plugging these values into `templates/<template>`. `bar`, `step`, `beat` and
+`dur` come from `song.md`. Every other placeholder must be defined by the globals
+here or by the instrument's `parameters`.
 
 Scalar values are single tokens. List values (used by `{{if_steps(...)}}`) are
 `\|`-separated inside the table cell (the backslash escapes the markdown pipe).
 
 sr: 192000
-dur: 240
 lp: 19000
 osr: 48000
-bar: 1.714286
-step: 0.107143
 gold: 2.399963
 vbase: 0.6
 vamt: 0.4
-grid: floor(mod(t,1.714286)/0.107143)
-halfgrid: floor(mod(t,0.857143)/0.107143)
+grid: floor(mod(t,{{bar}})/{{step}})
+halfgrid: floor(mod(t,{{bar}}/2)/{{step}})
 note_grid: floor(t/0.18)
 
 ## Instruments

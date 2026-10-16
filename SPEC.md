@@ -1,11 +1,12 @@
 # SPEC.md - fftechno (SRS)
 
-Technical specification of **fftechno**: a four-minute underground techno track
-(currently a 155 BPM "Basement"-style jungle-techno tune; an earlier hardgroove
-track is in git history) plus a black-and-white dancing-girl music video. Every
-sound is synthesized by **ffmpeg** (the voice by a local neural TTS); the build
-tooling is Python. The arrangement and every instrument parameter live in
-markdown.
+Technical specification of **fftechno**: underground tracks synthesized by
+**ffmpeg**, plus a music video when the song has one. The songs are folders
+under `songs/`: `basement` (155 BPM, 155 bars, 4:00), `hardgroove` (140 BPM,
+140 bars, 4:00), `minimal` (100 BPM, 75 bars, 3:00), `triphop` (84 BPM, 84 bars,
+4:00, audio only) and `triphop_beat` (88 BPM, 8 bars, a scratch). A voice, when
+the song has a `vox` stem, comes from a local neural TTS. The build tooling is
+Python. The arrangement and every instrument parameter live in markdown.
 
 ---
 
@@ -16,12 +17,12 @@ Produce a fixed-length techno track and a video, driven by a song's markdown fil
 (substituting the recorded parameter values reproduces the original ffmpeg filter
 graphs, verified by rendering comparison).
 
-The video's main visual is a black-and-white dancing girl, drawn as a white
-**silhouette outline** with the **blue hair chroma-keyed** from the source and cut
-to random stills on the beat (the `outline` look). Two other looks share the same
-pipeline: `edge` (an RVM-matted white line drawing) and `pollock` (an all-over
-abstract painting from whole-frame edges). The voice is synthesised with a local
-neural TTS - **Kitten TTS** (`kittenml`) by default, or **Piper** - both offline.
+The video looks share one pipeline. `outline` draws a white silhouette and keeps
+the blue hair, cut to random stills on the beat. `edge` is an RVM-matted line
+drawing. `pollock` is an abstract painting from whole-frame edges. `photo` is a
+still image. A song with no `video.md` is audio only (`triphop`, `triphop_beat`).
+The voice is synthesised with a local neural TTS - **Kitten TTS** (`kittenml`) by
+default, **Piper**, or ffmpeg **flite** - all offline.
 
 In scope: `aevalsrc`-based synthesis, drum/gate patterns, mix automation, side-chain,
 convolution reverb, two-pass loudness mastering, an RVM / `edgedetect` / silhouette
@@ -124,6 +125,8 @@ Tables (all required unless noted):
 - **Stems** - `| stem |`; the mix input order (one `-i` per row). Defines which
   stems exist.
 - **Boosts** - `| stem | boost |`; a per-stem gain multiplied over the section gains.
+  Required for every stem that has a Sections column. A Levels-only stem (the voice)
+  has no Boosts row.
 - **Sections** - `| bars | <stem> | ... |`; rows are bar ranges (`start-end`),
   columns are arranged stems, cells are gains. The last section fades.
 - **Pan** - `| stem | mode | left | right |`; `mode` is `center`, `haas`,
@@ -135,8 +138,10 @@ Tables (all required unless noted):
   `bus_threshold/ratio/attack/release`.
 - **Levels** - `| stem | level |`; fixed level for non-arranged stems (vox).
 
-Rules: section ranges are contiguous; the last row's end equals `bars`; every stem
-has a `Pan` row; `low_bus` stems must be in `Stems`. Missing entries raise.
+Rules: the first section starts at bar 0; each next range starts where the previous
+one ends; the last row's end equals `bars`; every Sections column is a Stem; every
+stem is in Sections or Levels; every arranged stem has a Boosts row; every stem has
+a `Pan` row; `low_bus` stems must be in `Stems`. Missing entries raise.
 
 ## 7. Control surface B - `songs/<name>/sounds.md` + `templates/`
 
@@ -152,14 +157,26 @@ placeholder fails loudly.
   `if(eq(GRID,0),v0, if(eq(GRID,1),v1, ... , default))`. `seq` is a value (or param
   name), `grid` is an expression, `default` is a param name or a numeric literal.
 - Lists are `|`-separated; inside a markdown table cell the pipe is escaped `\|`.
-- Globals are per song (declared at the top of `sounds.md`); the tracks here use
-  combinations of `sr, dur, lp, osr, bar, step, beat, gold, vbase, vamt, grid,
-  halfgrid, beatgrid`.
+- `bar`, `step`, `beat` and `dur` are not written in `sounds.md`. `synth.py`
+  computes them from `song.md` (`bpm` and `bars`) and injects them. One bar is
+  `240/bpm` seconds, one beat is `60/bpm`, one step is a quarter of a beat, and
+  `dur` is the song length. Other scalars may reference `{{bar}}`, `{{step}}` and
+  `{{beat}}`. A copy of those four names in `sounds.md` fails the build.
+- Other globals are per song (declared at the top of `sounds.md`). The tracks
+  here use combinations of `sr, lp, osr, gold, vbase, vamt, grid, halfgrid,
+  beatgrid`, plus song-local clocks such as `bgrid` and `cgrid`. An instrument
+  parameter of the same name wins over an injected clock (`beat=` on a hardgroove
+  drum).
 
 ## 8. Instruments
 
-Seventeen instruments, all parameterised (values in `sounds.md`); template *variants*
-that add per-instrument effects are listed after the table:
+The shared techno set is seventeen instruments, all parameterised (values in
+`sounds.md`). Template *variants* that add per-instrument effects are listed after
+the table. `triphop` adds `boom.txt`, `break_sp.txt`, `roll.txt`, `sub.txt`,
+`ep.txt`, `strings.txt`, `bell.txt`, `dubstab.txt`, `horn.txt`, `rise.txt` and
+`vinyl.txt`. `triphop_beat` uses `break_synth.txt`, `kick_trip.txt` and
+`bass_gate.txt`. `sax.txt` and `rhodes.txt` are examples. They are not in the
+shipped trip-hop song.
 
 | Instrument | Template | Highlights |
 |------------|----------|------------|
@@ -273,15 +290,18 @@ With `--safe` (off by default) a second, stricter `alimiter` (`limit=0.5`, about
 
 ## 11. Output format
 
-`output/<song>/techno.wav`: pcm_s16le, 48 kHz, 2 channels, 240.000 s, -13.0 LUFS,
-true peak -1.0 dBFS.
+`output/<song>/techno.wav`: pcm_s16le, 48 kHz, 2 channels. The length is `bars`
+times one bar (`240/bpm` seconds): 240 s for `basement`, `hardgroove` and
+`triphop`, 180 s for `minimal`, about 21.8 s for `triphop_beat`. The master
+targets -13 LUFS and -1 dBTP.
 
 ## 12. Video - `visualizer.vpy`
 
 VapourSynth + vs-placebo. The picture is produced by a **source** (`Look`) and an
 ordered **effect chain** (`fftechno/effects.py`, see 12.5). A small piece of
-per-frame data is written into a low-res YUV444P16 clip (960x540), upscaled to
-1920x1080; paint-tier effects draw into that frame and shader-tier effects are
+per-frame data is written into a low-res YUV444P16 clip (half the output size;
+960x540 at the default 1920x1080) and upscaled to that size. Paint-tier effects
+draw into that frame and shader-tier effects are
 spliced into a GLSL shader that reads the picture (`HOOKED_tex`), the audio data
 strip and `frame` (time). The shader **preserves chroma** (so the blue hair stays
 blue). Output is YUV420P8, piped to ffmpeg by `vspipe -c y4m`. `--static` renders a
@@ -469,12 +489,13 @@ guarantees a single writer.
 
 ## 17. Extension guide
 
-- **Tempo/length:** edit `bpm`/`bars` and the `Sections` rows.
+- **Tempo/length:** edit `bpm`/`bars` and the `Sections` rows. `bar`, `step`,
+  `beat` and `dur` follow `bpm` and `bars`. Do not copy them into `sounds.md`.
 - **New instrument:** add a `templates/<name>.txt` (with `{{keys}}`), a row in
-  `sounds.md`, the name in the `Stems` table, a `Pan` row, a `Boosts` row, and a
-  `Sections` column.
-- **New song:** add `songs/<name>/song.md` + `sounds.md` (optionally `vocals.md`,
-  `video.md`); a subclass in `song.py` is optional (a generic `Song` is used).
+  `sounds.md`, the name in the `Stems` table, a `Pan` row, and either a `Boosts`
+  row plus a `Sections` column, or a `Levels` row.
+- **New song:** add `songs/<name>/song.md` and `sounds.md` (optionally `vocals.md`,
+  `video.md`). A folder is the song. There is no subclass and no registry.
 - **Per-instrument effect (reverb/delay):** add a template variant that splits the
   stem and mixes an `aecho` wet branch back in (see `kick_verb.txt`, `hat_rand.txt`).
 - **New visual effect:** add a class in `fftechno/effects.py` (paint tier for
@@ -484,20 +505,23 @@ guarantees a single writer.
   `video.md` (`edge`, `pollock`, `outline`, `photo`).
 - **New step melody:** use `{{if_steps(seq; grid; default)}}` and a `\|` list.
 - **Mix effects:** the `Effects` table.
-- **Video:** edit `SHADER` in `visualizer.vpy`.
+- **Video:** name effects in `video.md` (`effects:`). The shader is assembled from
+  that chain (`effects.assemble_shader`). Do not edit a `SHADER` constant.
 
 ## 18. File inventory
 
 ```
 songs/<name>/                control surfaces: song.md, sounds.md (+ optional
                              vocals.md, video.md)
-templates/*.txt              synth schematics: 17 instrument templates + variants
-                             (kick_verb, hat_rand) + legacy ones (beeps, growl, rim, tom)
+templates/*.txt              synth schematics: the techno set, its variants
+                             (kick_verb, hat_rand), the trip-hop set, and examples
+                             (sax, rhodes, beeps, growl, rim, tom)
 filters/<name>/*.txt         generated graphs + vox.txt
-fftechno/                    config, song, looks, effects, proc (build lock), audio,
-                             synth, arrangement, vox, girl, matte, video, cli
+fftechno/                    config, md, song, looks, effects, proc (build lock),
+                             audio, synth, arrangement, vox, girl, matte, video, cli
 visualizer.vpy               the video
 pyproject.toml LICENSE.md README.md SPEC.md TODO.md CHANGELOG.md
+                             AEVAL_TUTORIAL.md (the aevalsrc/aeval guide)
 output/<name>/               techno*.wav, techno_visualizer*.mp4, girl_loop*.mp4,
                              girl_frames.npy / girl_sprites.npy + girl_pick.npy,
                              lyrics.json, stems/, logs/
@@ -518,37 +542,40 @@ The code is song-agnostic; song data lives in folders and the style-specific vid
 code lives in one place.
 
 **Tracks.** `basement` (155 BPM jungle techno, 155 bars, 16 instruments + vox,
-`outline` video), `hardgroove` (140 BPM, 140 bars, 12 instruments, `edge` video) and
-`minimal` (100 BPM, 75 bars = 3:00, Robert-Hood-style: a dry, never-dropping 4-on-4
-kick, closed + dynamic open hats, snare, rim and a one-note bass under a resonant
-low-pass). A single **`blow`** stem - a candle puff of filtered noise
-(`templates/blow.txt`, `period`-repeated) - is panned right and repeats every two bars
-from the 2:00 mark to the end of the track (13 puffs of ~0.26 s), fading with the outro.
-The track is **instrumental**: a "tick" count-in is written in
-`songs/minimal/vocals.md` (engine `flite`) but parked - `vox.py` only renders when
-`vox` is in the song's Stems table, and `audio.build` drops a stale `lyrics.json` so
-the video cannot draw a voice that is not in the mix. Its video is **vertical
-1080x1920**, the still photo framed with `focus` so the subject's nose sits at the
-centre of the pattern, with the `squares, grain` chain.
+`outline` video). `hardgroove` (140 BPM, 140 bars, 12 instruments + vox in Levels,
+`edge` video). `minimal` (100 BPM, 75 bars = 3:00, Robert-Hood-style: a dry,
+never-dropping 4-on-4 kick, closed + dynamic open hats, snare, rim and a one-note
+bass under a resonant low-pass). A single **`blow`** stem - a candle puff of
+filtered noise (`templates/blow.txt`, `period`-repeated) - is panned right and
+repeats every two bars from the 2:00 mark to the end of the track (13 puffs of
+~0.26 s), fading with the outro. The track is **instrumental**: a "tick" count-in
+is written in `songs/minimal/vocals.md` (engine `flite`) but parked - `vox.py`
+only renders when `vox` is in the song's Stems table, and `audio.build` drops a
+stale `lyrics.json` so the video cannot draw a voice that is not in the mix. Its
+video is **1920x1080** (no `size:` line). The still photo is framed with `focus`
+so the subject's nose sits at the centre of the pattern, with the `squares, grain`
+chain. `triphop` (84 BPM, 84 bars = 4:00, instrumental, audio only) uses kick,
+brk, roll, sub, ep, strings, bell, stab, horn, rise and vinyl. The side-chain key
+is kick and the low bus is sub. The master on disk is `output/triphop/techno_v4.wav`.
+`triphop_beat` is an 88 BPM, 8-bar scratch (kick, break, bass), not the 4-minute song.
 
-**Songs** (`fftechno/song.py`). An abstract `Song` exposes a track: paths to its
-four markdown files; its `filters`/`output`/`stems`/`logs` dirs; its parsed
+**Songs** (`fftechno/song.py`). `Song(name)` exposes a track: paths to its four
+markdown files; its `filters`/`output`/`stems`/`logs` dirs; its parsed
 arrangement; derived `bpm`/`bar`/`duration`; its `vocals()` (TTS engine/voice +
-phrase times) and `video()` (source, crop, look, loop) settings; and per-song
-output paths (`techno.wav`, `techno_visualizer*.mp4`, `girl_*`, `lyrics.json`).
-Concrete songs are thin subclasses (`Basement`, `Hardgroove`, `Minimal`) registered
-in a `SONGS` dict; a folder with no subclass still works (a generic `Song`). Adding a
-track = add `songs/<name>/` with `song.md` and `sounds.md` (`vocals.md`/`video.md`
-are optional - without them the song is instrumental with no video; a subclass is
-optional too).
+phrase times) and `video()` (source, crop, look, loop, size, effect chain); and
+per-song output paths (`techno.wav`, `techno_visualizer*.mp4`, `girl_*`,
+`lyrics.json`). `names()` is the directory names under `songs/`. `load(name)`
+returns `Song(name)`. Adding a track = add `songs/<name>/` with `song.md` and
+`sounds.md` (`vocals.md`/`video.md` are optional - without them the song is
+instrumental with no video).
 
 **Looks** (`fftechno/looks.py`). `girl.py` is a generic pipeline (decode ->
 optional matte -> look -> fit -> emit); a `Look` strategy declares `needs_matte`,
 `emits` (`stack` grey frames or `sprites` RGB), an optional `accumulation` hint and
 `decode` (`native`/`fitted`), plus `stack_filter(w,h)` (a `-filter_complex` body)
-and/or `sprites(frames, model)`. Three are registered: `edge`, `pollock`,
-`outline`. Adding a look = one subclass (and, if it needs knobs, a
-`| look | key | value |` row in a song's `video.md`).
+and/or `sprites(frames, model)`. Four are registered: `edge`, `pollock`,
+`outline`, `photo`. Adding a look = one subclass (and, if it needs knobs, a
+`| name | key | value |` row in a song's `video.md`).
 
 `templates/`, `filters/<song>/`, `visualizer.vpy` and the models in `tools/` are
 shared across every song.

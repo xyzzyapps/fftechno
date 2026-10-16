@@ -1,8 +1,10 @@
 # fftechno - status
 
-Three techno tracks (all sound synthesized by ffmpeg) plus a black-and-white
-dancing-girl music video, driven by markdown: **basement** (155 BPM jungle techno),
-**hardgroove** (140 BPM) and **minimal** (100 BPM, three instruments, audio only).
+Songs under `songs/` (all sound synthesized by ffmpeg), driven by markdown:
+**basement** (155 BPM jungle techno), **hardgroove** (140 BPM), **minimal**
+(100 BPM, 7 stems, 1920x1080 `photo` video) and **triphop** (84 BPM, audio only).
+**triphop_beat** is an 8-bar scratch at 88 BPM. A folder is the song. There is
+no song subclass.
 
 ## Done
 
@@ -17,7 +19,7 @@ dancing-girl music video, driven by markdown: **basement** (155 BPM jungle techn
 - Voice: local neural TTS - Kitten TTS (default) / Piper - short phrases
   from `songs/<song>/vocals.md`, which also drive the on-screen lyrics.
 - Video (`fftechno/girl.py`, `matte.py`, `visualizer.vpy`): beat-locked dancing-girl
-  loop with `--look edge|pollock|outline` (Pollock default) and `--mode
+  loop with `--look edge|pollock|outline|photo` and `--mode
   reset|trail|build`. The **outline** look shows only the silhouette contour
   (no face interior, crowd removed) with the **blue hair chroma-keyed**, cuts
   random stills in **on the beat**, and burns the **lyrics** in at the vocal
@@ -27,7 +29,7 @@ dancing-girl music video, driven by markdown: **basement** (155 BPM jungle techn
 - 140 BPM, 140 bars; 12 instruments (kick, clap, hat, ohat, conga, bongo, rim,
   shaker, bass, acid, growl, beeps); the `edge` video look.
 
-### Track 2 - "Basement" jungle techno (current `song.md`/`sounds.md`)
+### Track 2 - "Basement" jungle techno (`songs/basement/`)
 - **155 BPM, 155 bars = 4:00**, sidechain on kick, `reese` low bus.
 - **16 instruments**: kick, snare, snarefill, clap, hat, ohat, ride, crash,
   breakbeat, conga, shaker, reese, acid, lead_pwm, lead_fm, pad, stab - plus the
@@ -43,7 +45,8 @@ dancing-girl music video, driven by markdown: **basement** (155 BPM jungle techn
 
 ### Track 3 - "minimal" (`songs/minimal/`)
 - **100 BPM, 75 bars = 3:00**; Robert-Hood-style. A dry **4-on-4 kick that never
-  drops**; **6 stems**: kick, hat (`hat_step`), ohat (`ohat_dyn`), snare, rim, bass.
+  drops**; **7 stems**: kick, hat (`hat_step`), ohat (`ohat_dyn`), snare, rim, bass,
+  and one `blow` stem.
 - Closed hats on the 8ths, open hats on the offbeats with per-hit dynamism (decay
   varies 25x, accents ~7 dB - deterministic, never a fixed bar loop).
 - Snare on the backbeat and rim on the "a"; both appear late / drop out to keep the
@@ -58,6 +61,31 @@ dancing-girl music video, driven by markdown: **basement** (155 BPM jungle techn
   parameter (kick size, bass drift, hat thickness, ohat rotation, snare knock, rim
   flash) and drawn **only while its instrument is audible**. Renders to
   `output/minimal/techno_visualizer.mp4` (1920x1080, 180 s).
+
+## Done - Track 4 "trip hop" (`songs/triphop/`)
+
+Instrumental, audio only. **84 BPM, 84 bars = 4:00.** D minor, one 8-bar phrase.
+The master on disk is `output/triphop/techno_v4.wav`.
+
+- **Stems:** kick (`boom.txt`), brk (`break_sp.txt`), roll, sub, ep, strings, bell,
+  stab (`dubstab.txt`), horn, rise, vinyl. Side-chain key is `kick`. Low bus is `sub`.
+- **`songs/triphop_beat/`** is an 8-bar scratch at **88 BPM** (~21.8 s): `kick_trip`,
+  `break_synth`, `bass_gate`. It is not the 4-minute song. Its break swings at
+  phase 0.14 of a step. The shipped break (`break_sp`) swings at 0.22.
+- An earlier plan used 88 BPM, a sax lead and a Rhodes piano. That plan is not the
+  shipped song. `sax.txt` and `rhodes.txt` stay in `templates/` as examples.
+- `bar`, `step`, `beat` and `dur` come from `song.md`. Do not copy them into
+  `sounds.md`.
+
+### Docs - `AEVAL_TUTORIAL.md` (done)
+
+A from-scratch tutorial on ffmpeg as a synthesizer: the `aevalsrc`/`aeval`
+primitives, the oscillator/envelope/modulation library, how each instrument is
+built, step sequencing and the `if_steps` ladder, note length vs grid, swing as a
+pairwise time warp, deterministic randomness (`random(idx)`, `st`/`ld`, per-step
+hashes), the effect mapping to DAW plugins, a DAW/Electribe comparison, and the
+"no MIDI, not realtime" answer. Every runnable example was executed against
+ffmpeg 9.0.2 (see the doc's preamble). Linked from README + SPEC.
 
 ## Optional next
 
@@ -94,10 +122,10 @@ SPEC.md 12.5. Notes kept for reference:
   shown only while its instrument is audible and **hidden, never dimmed**; the drawn
   level is `level` (1.0 = pure white). A size cap keeps a square from outgrowing the
   frame (its edges would otherwise clip into stray full-width lines).
-- Output is **vertical 1080x1920** (`size:` in `video.md`) with the photo
+- Output is **1920x1080**. `minimal` sets no `size:` line. The photo is
   `fill`-framed (cover + centre-crop), so there is no black gap. The size is per song
   and drives the picture frame, the strip rows, the shader coordinates and the
-  720x1280 preview.
+  preview (1280x720 when the frame is landscape).
 - The previously hard-coded shader became four selectable effects (`kick_flash`,
   `vignette`, `grain`, `kick_glitch`) = the built-in default chain, so songs that
   name no effects render as before. Verified by frame hash: `basement` and
@@ -144,11 +172,9 @@ SPEC.md 12.5. Notes kept for reference:
 - **`flite` TTS engine.** `vox.py` gained ffmpeg's built-in TTS (libflite voices
   `slt`, `kal`, `kal16`, `rms`, `awb`) as a third engine next to Kitten and Piper -
   no model files, no network; `--tts flite` on the CLI.
-- **Five candle blows.** `templates/blow.txt` (filtered noise, one-shot at `at`) plus
-  five stems, one every two bars from the 2:00 mark (120.0/124.8/129.6/134.4/139.2 s),
-  each with its own brightness/length and its own stereo placement - verified in the
-  mix: centre +0.0 dB, hard left +13.2, hard right -12.6, Haas wide +0.2, soft right
-  -6.7.
+- **One blow stem.** `templates/blow.txt` repeats a filtered-noise puff every
+  `period` seconds. `minimal` uses one stem, panned right: 13 puffs of ~0.26 s from
+  the 2:00 mark to about 177.6 s. The earlier five-stem version is not the song.
 - **`Levels` stems honour the `Pan` table** (they used to be folded to mono centre).
   Basement/hardgroove levels halved to compensate (vox 6.0 -> 3.0 and 1.5 -> 0.75,
   beeps 1.0 -> 0.5); verified: same peak and RMS to <0.001 dB, bit-identical for 239

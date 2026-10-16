@@ -1,26 +1,26 @@
 """visualizer.vpy - VapourSynth + GLSL dancing-girl visualizer.
 
-The main visual is the dancing girl, drawn by ``fftechno girl`` as one of three
-"looks" (``--look``):
+The picture comes from ``fftechno girl`` as one of four looks (``--look``):
 
 * ``outline`` - only the silhouette contour in white plus the blue hair
   (chroma-keyed), cut to random stills on the beat;
 * ``edge`` - a clean white line drawing of the matted subject;
-* ``pollock`` - an all-over abstract "painting" from whole-frame edges.
+* ``pollock`` - an all-over abstract "painting" from whole-frame edges;
+* ``photo`` - a still image.
 
 This script writes that per-frame data into a low-res YUV444P16 clip (the picture
-in Y/U/V, an audio data strip in the top rows), upscales to 1920x1080, and runs a
-GPU GLSL shader (vs-placebo) that keeps the colour, applies a kick-synced
-brightness punch plus a light vignette and grain (no drawn overlay), and masks the
-strip rows black. ``output/lyrics.json`` (from ``config.VOX_LINES``) is drawn with
-a self-contained 5x7 bitmap font.
+in Y/U/V, an audio data strip in the top rows), upscales to the song size (default
+1920x1080), and runs a GPU GLSL shader (vs-placebo). The shader is assembled from
+the song's effect chain. It keeps the colour and masks the strip rows black.
+``output/<song>/lyrics.json`` (written from ``vocals.md``) is drawn with a
+self-contained 5x7 bitmap font. There is no ``config.VOX_LINES``.
 
 Pipeline
 --------
 1. Analyse the mastered WAV (64 bands + bass + kick + energy).
 2. Per frame: write the picture (grey luma, or RGB -> YUV for the outline sprites)
    and the audio data strip into the top rows of a low-res YUV444P16 clip.
-3. Upscale to 1920x1080; ``core.placebo.Shader`` shades it and the lyric for the
+3. Upscale to the song size; ``core.placebo.Shader`` shades it and the lyric for the
    current time is drawn.
 4. Convert to YUV420P8 for y4m piping.
 

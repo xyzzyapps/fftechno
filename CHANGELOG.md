@@ -1,6 +1,19 @@
 # Changelog
 
 ## Unreleased
+- **Clocks come from `song.md`.** `bar`, `step`, `beat` and `dur` are computed from
+  `bpm` and `bars` when `sounds.md` is rendered. A copy of those four names in
+  `sounds.md` fails the build. Other scalars may use `{{bar}}`, `{{step}}` and
+  `{{beat}}`. The 4-minute trip-hop master was not rebuilt for this.
+- **One markdown reader.** `fftechno/md.py` reads tables and scalars for `song.md`,
+  `sounds.md`, `vocals.md` and `video.md`.
+- **A song is a folder.** `load(name)` returns `Song(name)`. The empty song
+  subclasses and the `SONGS` registry are gone.
+- **Arrangement check.** Sections start at bar 0, meet with no gap, and end at
+  `bars`. Every stem is in Sections or Levels. Every arranged stem has a Boost.
+  A Levels-only stem (the voice) stays out of Sections.
+- Removed unused `Song.look_param`, `PaintCtx.white`, and `GIRL_FRAME_W` /
+  `GIRL_FRAME_H`.
 - **Pluggable video effects.** The picture is now a **source** (`Look`) plus an
   ordered **effect chain** (`fftechno/effects.py`): paint-tier effects draw per frame
   in numpy, shader-tier effects are spliced into the vs-placebo GLSL. Chosen per song

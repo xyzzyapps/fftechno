@@ -1,56 +1,18 @@
-"""Songs: an abstract :class:`Song` plus one thin subclass per track.
+"""A song is a folder under ``songs/<name>/``.
 
-All song-specific *data* lives in ``songs/<name>/`` - ``song.md`` (arrangement),
-``sounds.md`` (instruments), ``vocals.md`` (TTS voice + phrase times) and
-``video.md`` (source clip, crop, look). The code below is generic: the subclasses
-only set ``name``, and every value is read from the folder, so adding a song is a
-matter of adding a folder (and, optionally, a subclass).
+``song.md`` is the arrangement, ``sounds.md`` the instruments, ``vocals.md`` the
+TTS lines and ``video.md`` the picture. Adding a song is adding that folder.
 """
 
 from __future__ import annotations
 
 import re
-from abc import ABC
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import config as C
-
-
-# ---------------------------------------------------------------------------
-# Tiny markdown readers (shared with the style of song.md / sounds.md)
-# ---------------------------------------------------------------------------
-def _cells(line: str) -> list[str]:
-    inner = line.strip()
-    inner = inner.removeprefix("|")
-    if inner.endswith("|") and not inner.endswith("\\|"):
-        inner = inner[:-1]
-    return [c.replace("\\|", "|").strip() for c in re.split(r"(?<!\\)\|", inner)]
-
-
-def _scalars(text: str) -> dict[str, str]:
-    return {
-        m.group(1): m.group(2)
-        for m in re.finditer(r"^\s*([a-z_]+)\s*:\s*(\S+)\s*$", text, re.MULTILINE)
-    }
-
-
-def _rows(text: str, header: list[str]) -> list[list[str]]:
-    """Rows of the first table whose header matches *header* (case-insensitive)."""
-    lines = text.splitlines()
-    for i, line in enumerate(lines):
-        if i + 1 >= len(lines) or not line.lstrip().startswith("|"):
-            continue
-        if not re.match(r"^\s*\|[\s:|.-]+\|\s*$", lines[i + 1]):
-            continue
-        if [c.lower() for c in _cells(line)] == header:
-            rows = []
-            j = i + 2
-            while j < len(lines) and lines[j].lstrip().startswith("|"):
-                rows.append(_cells(lines[j]))
-                j += 1
-            return rows
-    return []
+from .md import rows as _rows
+from .md import scalars as _scalars
 
 
 # ---------------------------------------------------------------------------
@@ -94,23 +56,14 @@ class Video:
         p = Path(self.source) if self.source else Path("")
         return p if p.is_absolute() else (C.ROOT / p)
 
-    def look_param(self, look: str, key: str, default):
-        raw = self.params.get((look, key))
-        if raw is None:
-            return default
-        return type(default)(raw) if default is not None else raw
 
+class Song:
+    """A track: its markdown files, derived timing and output paths."""
 
-class Song(ABC):
-    """A track: its four markdown files, derived timing and output paths."""
-
-    name: str = ""
-
-    def __init__(self, name: str | None = None) -> None:
-        if name:
-            self.name = name
-        if not self.name:
+    def __init__(self, name: str) -> None:
+        if not name:
             raise ValueError("a Song needs a name")
+        self.name = name
 
     # --- paths -------------------------------------------------------------
     @property
@@ -268,46 +221,17 @@ class Song(ABC):
         )
 
 
-class _GenericSong(Song):
-    """Used when a ``songs/<name>/`` folder has no registered subclass."""
-
-
-SONGS: dict[str, type[Song]] = {}
-
-
-def register(cls: type[Song]) -> type[Song]:
-    """Decorator: add a Song subclass to the registry."""
-    SONGS[cls.name] = cls
-    return cls
-
-
-@register
-class Basement(Song):
-    name = "basement"
-
-
-@register
-class Hardgroove(Song):
-    name = "hardgroove"
-
-
-@register
-class Minimal(Song):
-    name = "minimal"
-
-
 def names() -> list[str]:
-    """All song names (folders on disk, plus any registered but missing a folder)."""
-    found = (
-        {p.name for p in C.SONGS.iterdir() if p.is_dir()} if C.SONGS.exists() else set()
-    )
-    return sorted(found | set(SONGS))
+    """Song names: the folder names under ``songs/``."""
+    if not C.SONGS.exists():
+        return []
+    return sorted(p.name for p in C.SONGS.iterdir() if p.is_dir())
 
 
 def load(name: str) -> Song:
-    """Return the Song for *name* (a registered subclass, or a generic one)."""
+    """Return the song for *name*."""
     if name not in names():
         raise SystemExit(
             f"unknown song '{name}' (have: {', '.join(names()) or 'none'})"
         )
-    return SONGS.get(name, _GenericSong)(name)
+    return Song(name)

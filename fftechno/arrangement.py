@@ -12,14 +12,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-
-def _cells(line: str) -> list[str]:
-    """Split a markdown table row on unescaped '|' (``\\|`` is a literal pipe)."""
-    inner = line.strip()
-    inner = inner.removeprefix("|")
-    if inner.endswith("|") and not inner.endswith("\\|"):
-        inner = inner[:-1]
-    return [c.replace("\\|", "|").strip() for c in re.split(r"(?<!\\)\|", inner)]
+from .md import scalars, tables
 
 
 @dataclass
@@ -54,47 +47,49 @@ def _need(mapping: dict, key, where: str):
     return mapping[key]
 
 
-def _tables(text: str) -> list[tuple[list[str], list[list[str]]]]:
-    """Return (header, rows) for every markdown table in *text*."""
-    tables: list[tuple[list[str], list[list[str]]]] = []
-    lines = text.splitlines()
-    i = 0
-    while i < len(lines):
-        sep = (
-            re.match(r"^\s*\|[\s:|.-]+\|\s*$", lines[i + 1])
-            if i + 1 < len(lines)
-            else None
-        )
-        if lines[i].lstrip().startswith("|") and sep:
-            header = _cells(lines[i])
-            rows: list[list[str]] = []
-            j = i + 2
-            while j < len(lines) and lines[j].lstrip().startswith("|"):
-                rows.append(_cells(lines[j]))
-                j += 1
-            tables.append((header, rows))
-            i = j
-        else:
-            i += 1
-    return tables
+def _check(song: Song) -> None:
+    """Sections cover ``0``..``bars`` with no gap, and every stem is placed."""
+    if not song.sections:
+        raise SystemExit("song.md: missing Sections table")
+    end = 0
+    for lo, hi, _gains in song.sections:
+        if hi <= lo:
+            raise SystemExit(f"song.md: section {lo}-{hi} is empty")
+        if lo != end:
+            raise SystemExit(f"song.md: section {lo}-{hi} does not follow bar {end}")
+        end = hi
+    if end != song.bars:
+        raise SystemExit(f"song.md: sections end at bar {end}, but bars is {song.bars}")
+    for name in song.arranged:
+        if name not in song.stems:
+            raise SystemExit(f"song.md: Sections column '{name}' is not in Stems")
+    for name in song.stems_order:
+        in_sections = name in song.arranged
+        in_levels = name in song.levels
+        if not in_sections and not in_levels:
+            raise SystemExit(
+                f"song.md: '{name}' needs a Sections column or a Levels row"
+            )
+        if in_sections and name not in song.boosts:
+            raise SystemExit(f"song.md: Boosts has no entry for '{name}'")
 
 
 def parse(path: Path) -> Song:
     """Parse the ``song.md`` control surface (all values required)."""
     text = path.read_text(encoding="utf-8")
-    scalars = dict(re.findall(r"^\s*([a-z_]+)\s*:\s*(\S+)\s*$", text, re.MULTILINE))
+    scalars_ = scalars(text)
     for key in ("bpm", "bars", "fade_bars", "sidechain_key", "low_bus"):
-        if key not in scalars:
+        if key not in scalars_:
             raise SystemExit(f"song.md: missing scalar '{key}'")
     song = Song(
-        float(scalars["bpm"]),
-        int(float(scalars["bars"])),
-        float(scalars["fade_bars"]),
-        sidechain_key=scalars["sidechain_key"],
-        low_bus=scalars["low_bus"].split("|"),
+        float(scalars_["bpm"]),
+        int(float(scalars_["bars"])),
+        float(scalars_["fade_bars"]),
+        sidechain_key=scalars_["sidechain_key"],
+        low_bus=scalars_["low_bus"].split("|"),
     )
 
-    for header, rows in _tables(text):
+    for header, rows in tables(text):
         head = [h.lower() for h in header]
         if head == ["stem"]:
             song.stems_order = [r[0] for r in rows]
@@ -122,8 +117,7 @@ def parse(path: Path) -> Song:
 
     if not song.stems_order:
         raise SystemExit("song.md: missing Stems table")
-    if not song.sections:
-        raise SystemExit("song.md: missing Sections table")
+    _check(song)
     for stem in song.stems:
         _need(song.pan, stem, "Pan")
     _need(song.pan, song.sidechain_key, "Pan")

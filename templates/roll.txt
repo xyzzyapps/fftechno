@@ -1,0 +1,1 @@
+aevalsrc='{{amp}}*gt({{local}},0)*exp(-{{decay}}*mod({{local}},{{step}}))*({{vmin}}+{{vspan}}*{{local}}/{{window}})*({{tone}}*sin(2*PI*{{sf}}*mod({{local}},{{step}}))+{{snoise}}*(random(0)*2-1)*exp(-{{nd}}*mod({{local}},{{step}})))':s={{sr}}:d={{dur}}[src];[src]highpass=f={{hp}},asoftclip=type=tanh:threshold={{clip}},lowpass=f={{lpc}},lowpass=f={{lp}},aresample={{osr}}[out]

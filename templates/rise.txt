@@ -1,0 +1,1 @@
+aevalsrc='{{amp}}*gt({{ph}},{{start}})*pow(({{ph}}-{{start}})/(1-{{start}}),2)*({{tone}}*sin(2*PI*{{f0}}*pow(2,{{oct}}*({{ph}}-{{start}})/(1-{{start}}))*t)+(random(0)*2-1))':s={{sr}}:d={{dur}}[src];[src]highpass=f={{hp}},lowpass=f={{lpc}},lowpass=f={{lp}},aresample={{osr}}[out]

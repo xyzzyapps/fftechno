@@ -1,4 +1,5 @@
 .venv/
+asciii.bak
 tools/
 ascii/
 __pycache__/

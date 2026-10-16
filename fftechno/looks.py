@@ -36,7 +36,7 @@ class Look(ABC):
     needs_matte: bool = False  # run RVM matting before the transform?
     emits: str = "stack"  # "stack" (grey npy) | "sprites" (RGB npy + pick)
     accumulation: str | None = None  # shader hint for stack looks
-    decode: str = "native"  # "native" or "fitted" (to GIRL_FRAME_W/H)
+    decode: str = "native"  # "native" or "fitted" (half the output size)
 
     def configure(self, params: dict[str, str]) -> None:
         """Apply per-song overrides from ``video.md`` (optional)."""

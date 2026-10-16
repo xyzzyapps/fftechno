@@ -1,28 +1,24 @@
 # fftechno - synth definitions
 
 `python -m fftechno synth` renders each instrument below into `filters/<name>.txt`
-by plugging these values into `templates/<template>`. There are no defaults: every
-placeholder an instrument uses must be defined by the globals here or its own
-`parameters`.
+by plugging these values into `templates/<template>`. `bar`, `step`, `beat` and
+`dur` come from `song.md`. Every other placeholder must be defined by the globals
+here or by the instrument's `parameters`.
 
 Scalar values are single tokens. List values (used by `{{if_steps(...)}}`) are
 `\|`-separated inside the table cell (the backslash escapes the markdown pipe).
 
 sr: 192000
-dur: 180
 lp: 19000
 osr: 48000
-bar: 2.4
-step: 0.15
-beat: 0.6
-grid: floor(mod(t,2.4)/0.15)
 gold: 2.399963
 vbase: 0.6
 vamt: 0.4
+grid: floor(mod(t,{{bar}})/{{step}})
 
 ## Instruments
 
-Six stems, all dry and steady (no room/delay and no randomness): a 4-on-4 kick, a
+Seven stems, all dry and steady (no room/delay and no randomness): a 4-on-4 kick, a
 closed hat (`hat_step`) and an open hat (`ohat_dyn`) on the offbeats, a backbeat
 snare and rim, and a one-note bass under a resonant low-pass.
 

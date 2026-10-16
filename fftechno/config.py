@@ -36,7 +36,6 @@ VSPIPE = _vspipe()
 
 # --- video (generic) -------------------------------------------------------
 VIDEO_W, VIDEO_H, VIDEO_FPS = 1920, 1080, 30
-GIRL_FRAME_W, GIRL_FRAME_H = 960, 540  # size of the low-res picture the shader reads
 
 # --- models (shared) -------------------------------------------------------
 GIRL_MODEL = TOOLS / "rvm" / "rvm_mobilenetv3_fp32.onnx"  # Robust Video Matting

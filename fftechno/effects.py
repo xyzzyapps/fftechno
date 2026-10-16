@@ -153,14 +153,6 @@ class PaintCtx:
         """(width, height) of the frame."""
         return (self.luma.shape[1], self.luma.shape[0])
 
-    def white(self, mask: np.ndarray, level: float = 1.0) -> None:
-        """Paint *mask* as neutral white at *level* (0..1)."""
-        if not mask.any():
-            return
-        self.luma[mask] = np.uint16(np.clip(level, 0.0, 1.0) * 65535)
-        self.u[mask] = 128 * 257
-        self.v[mask] = 128 * 257
-
 
 # ---------------------------------------------------------------------------
 # Shader-tier effects (per pixel, GLSL at 1920x1080)
