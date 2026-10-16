@@ -1,0 +1,1 @@
+aevalsrc='0.65*(random(0)*2-1)*(1-exp(-40*mod(max(0,t-135.8),24.0)))*exp(-8.0*mod(max(0,t-135.8),24.0))':s=192000:d=180[src];[src]highpass=f=180,lowpass=f=4800,equalizer=f=480:t=q:w=1.3:g=6,asoftclip=type=tanh:threshold=0.8,lowpass=f=19000,aresample=48000[out]
