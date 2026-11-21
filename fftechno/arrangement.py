@@ -31,6 +31,7 @@ class Song:
     pan: dict[str, tuple] = field(default_factory=dict)
     effects: dict[str, float] = field(default_factory=dict)
     levels: dict[str, float] = field(default_factory=dict)
+    reverb_seconds: float = 2.2
 
     @property
     def bar_seconds(self) -> float:
@@ -117,6 +118,7 @@ def parse(path: Path) -> Song:
 
     if not song.stems_order:
         raise SystemExit("song.md: missing Stems table")
+    song.reverb_seconds = float(scalars_.get("reverb_seconds", 2.2))
     _check(song)
     for stem in song.stems:
         _need(song.pan, stem, "Pan")

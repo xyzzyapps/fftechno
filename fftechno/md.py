@@ -31,7 +31,11 @@ def tables(text: str) -> list[tuple[list[str], list[list[str]]]]:
     lines = text.splitlines()
     i = 0
     while i < len(lines):
-        if lines[i].lstrip().startswith("|") and i + 1 < len(lines) and _SEP.match(lines[i + 1]):
+        if (
+            lines[i].lstrip().startswith("|")
+            and i + 1 < len(lines)
+            and _SEP.match(lines[i + 1])
+        ):
             header = cells(lines[i])
             rows: list[list[str]] = []
             j = i + 2

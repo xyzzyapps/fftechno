@@ -1,0 +1,11 @@
+amovie=samples/stoner_kit/hat-closed.wav[s0];
+[s0]asplit=8[s0_0][s0_1][s0_2][s0_3][s0_4][s0_5][s0_6][s0_7];
+[s0_0]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.2,asetpts=N/SR/TB,highpass=f=5500,equalizer=f=8000:t=q:w=1:g=3,volume=1.3,adelay=0:all=1[h0];
+[s0_1]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.2,asetpts=N/SR/TB,highpass=f=5500,equalizer=f=8000:t=q:w=1:g=3,volume=0.65,adelay=375.9132:all=1[h1];
+[s0_2]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.2,asetpts=N/SR/TB,highpass=f=5500,equalizer=f=8000:t=q:w=1:g=3,volume=1.04,adelay=749.0712:all=1[h2];
+[s0_3]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.2,asetpts=N/SR/TB,highpass=f=5500,equalizer=f=8000:t=q:w=1:g=3,volume=0.65,adelay=1130.9844:all=1[h3];
+[s0_4]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.2,asetpts=N/SR/TB,highpass=f=5500,equalizer=f=8000:t=q:w=1:g=3,volume=1.3,adelay=1504.1424:all=1[h4];
+[s0_5]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.2,asetpts=N/SR/TB,highpass=f=5500,equalizer=f=8000:t=q:w=1:g=3,volume=0.65,adelay=1877.3004:all=1[h5];
+[s0_6]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.2,asetpts=N/SR/TB,highpass=f=5500,equalizer=f=8000:t=q:w=1:g=3,volume=1.04,adelay=2247.2136:all=1[h6];
+[s0_7]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.2,asetpts=N/SR/TB,highpass=f=5500,equalizer=f=8000:t=q:w=1:g=3,volume=0.65,adelay=2620.3716:all=1[h7];
+[h0][h1][h2][h3][h4][h5][h6][h7]amix=inputs=8:normalize=0,asoftclip=type=tanh:threshold=0.9,asetpts=N/SR/TB,atrim=0:3,apad=whole_len=144000,aloop=loop=-1:size=144000,atrim=0:240[out]

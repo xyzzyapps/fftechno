@@ -1,6 +1,56 @@
 # Changelog
 
 ## Unreleased
+- **Trip hop rework (`triphop_samples`) - a real break, four elements.** It is now a
+  full 4:00 minimal track (84 BPM, 80 bars, D minor): the **Amen break**, a **sub**,
+  a dusty **electric piano** and **vinyl**. The Amen is varispeeded 136 -> 84
+  (`rate=0.56176`) and trimmed to a two-bar loop; the file's real tempo is ~149.5 BPM
+  (its pattern repeats every 1.605 s), not the "136" in its name, so the old windows
+  did not match the phrase and the loop jumped - verified by self-correlation (0.957
+  at the 5.7143 s loop point). The sub is now bar-length, punchy and quiet
+  (`sub_async.txt`: fast attack, short pitch thump, decaying harmonics) on a 5-bar
+  phrase that drifts against the harmony, and it plays only while the piano does.
+  Master `techno_v14.wav` (-13.0 LUFS / -1.1 dBTP). A 1080x1080 cover and a
+  1920x1080 YouTube video were rendered from `image.jpg`.
+- **`stoner_samples` drums pass.** The sampler gained `rr` (round-robin: successive
+  hits cycle through listed samples) and `jitter` (deterministic per-hit timing
+  humanize). The stoner kit now uses round-robin snare/tom (3 Pearl samples each),
+  ghost notes + velocity accents, a groovier kick (1 / 2& / 3 / 4&), and tone shaping
+  (kick weight + click, snare body + crack, compression) so the drums cut through the
+  fuzz. Master `techno_v4.wav`.
+- **`stoner_samples` take 2 - the stoner tone fix.** Take 1's FreePats pre-distorted
+  guitar measured very dark (800-2500 Hz growl ~14 dB down) and sounded muddy. Take 2
+  uses the clean DI (`FSBS-direct`) + an Orange-style fuzz chain per hit, power chords
+  (`chord`), sustain (trim 1.2 s) and a 2-bar riff (`pat_bars`). The sampler gained
+  `chord` (per-hit frequency ratios for root/fifth/octave) and `pat_bars` (multi-bar
+  looped patterns). Growl now ~4 dB below the low-mids; master -13.0 LUFS / -2.7 dBTP.
+- **`stoner_samples` - sample-based stoner rock.** 80 BPM, 80 bars = 4:00, C minor /
+  drop-C. Pearl Master Studio acoustic drums (CC-BY 3.0) plus FreePats pre-distorted
+  electric guitar (`FSBS-dist1`, CC0) and picked electric bass (`electric-bass-YR`,
+  CC0). The sampler gained per-hit pitch (`notes`/`root`, `asetrate`), a per-hit
+  `fx` chain (`;`-separated), and a **multi-sample map** (`path@root|...`: C2/F2/C3
+  guitars, C3/G3 lead, C/E2 bass) that picks the nearest root per note. Fixed a `pat`
+  semantics bug (the list is step indices, not a gate pattern: the riff now plays
+  8ths at 0/2/4/6/8/10/12/14, not 16 duplicated hits). `pat` instruments build one
+  bar and loop it sample-accurately with `asetpts` + `whole_len` + `aloop` (a
+  4-minute pattern is ~4 KB of graph instead of 640 chains; the build is ~14 s).
+  Master: -13.0 LUFS / -2.0 dBTP, 5.0 s IR.
+- **`stoner` - stoner rock.** 76 BPM, 76 bars = 4:00, D minor / drop-D, instrumental,
+  no samples. A driving 8th-note fuzz riff (D-D-F-G / D-D-F-A) on two detuned
+  guitars, a thick fuzz bass, big sparse drums, a wah-ish lead (`guitar_wah.txt`, a
+  single-note fuzz + phaser) and a low organ drone. 5.0 s room; master -12.9 LUFS /
+  -1.1 dBTP. Found and fixed the real reason the psych guitars were quiet: `aecho`'s
+  `in_gain x out_gain` was attenuating them ~11 dB; the stoner rhythm guitars use a
+  transparent echo (1.0/1.0, decay 0.1) and now match the bass in the midrange.
+- **`psych` - 1960s psychedelic rock / wall of sound.** 110 BPM, 110 bars = 4:00,
+  E minor, instrumental, no samples. New templates: `guitar_fuzz.txt` (root/fifth/
+  octave power-chord wall with detuned pairs, tanh fuzz, cabinet EQ and phaser),
+  `guitar_lead.txt` (fuzz lead with vibrato), `organ.txt` (square drawbars, tremolo +
+  chorus), `bass_rock.txt` and `tamb.txt`. Two detuned rhythm-guitar stems panned
+  wide, organ, pad and tambourine over a rock kit. A new per-song `reverb_seconds`
+  (default 2.2, so existing songs are byte-identical) builds a 5.5 s convolution IR;
+  `reverb_send` 0.55 / wet 1.0. The lead's phaser/echo were removed because that
+  combination grew unstable over the full 240 s.
 - **Sample-based songs.** A song can make sound from audio files instead of `aevalsrc`
   oscillators. `samples/manifest.md` (tracked) lists every sample with URL and licence;
   `python -m fftechno samples` downloads and normalises them to 48 kHz PCM

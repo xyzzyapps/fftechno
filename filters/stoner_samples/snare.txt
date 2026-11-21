@@ -1,0 +1,9 @@
+amovie=samples/stoner_kit/snare.wav[s0];
+[s0]asplit=2[s0_0][s0_1];
+[s0_0]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.5,asetpts=N/SR/TB,highpass=f=100,equalizer=f=200:t=q:w=1:g=5,equalizer=f=250:t=q:w=1:g=3,equalizer=f=4500:t=q:w=1:g=7,acompressor=threshold=0.25:ratio=4:attack=3:release=120,volume=1.7,adelay=740:all=1[h0];
+[s0_1]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.5,asetpts=N/SR/TB,highpass=f=100,equalizer=f=200:t=q:w=1:g=5,equalizer=f=250:t=q:w=1:g=3,equalizer=f=4500:t=q:w=1:g=7,acompressor=threshold=0.25:ratio=4:attack=3:release=120,volume=0.68,adelay=2822.474:all=1[h3];
+amovie=samples/stoner_kit/snare2.wav[s1];
+[s1]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.5,asetpts=N/SR/TB,highpass=f=100,equalizer=f=200:t=q:w=1:g=5,equalizer=f=250:t=q:w=1:g=3,equalizer=f=4500:t=q:w=1:g=7,acompressor=threshold=0.25:ratio=4:attack=3:release=120,volume=0.595,adelay=1314.022:all=1[h1];
+amovie=samples/stoner_kit/snare3.wav[s2];
+[s2]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.5,asetpts=N/SR/TB,highpass=f=100,equalizer=f=200:t=q:w=1:g=5,equalizer=f=250:t=q:w=1:g=3,equalizer=f=4500:t=q:w=1:g=7,acompressor=threshold=0.25:ratio=4:attack=3:release=120,volume=1.7,adelay=2248.452:all=1[h2];
+[h0][h3][h1][h2]amix=inputs=4:normalize=0,asoftclip=type=tanh:threshold=0.9,asetpts=N/SR/TB,atrim=0:3,apad=whole_len=144000,aloop=loop=-1:size=144000,atrim=0:240[out]

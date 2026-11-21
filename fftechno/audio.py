@@ -19,8 +19,16 @@ from .song import Song
 
 
 def make_ir(song: Song) -> None:
-    """Generate the convolution reverb impulse response (decaying noise)."""
-    expr = "(random(0)*2-1)*exp(-2.2*t)|(random(1)*2-1)*exp(-2.4*t)"
+    """Generate the convolution reverb impulse response (decaying noise).
+
+    The length is the song's optional ``reverb_seconds`` (default 2.2). The decay
+    rate scales with it so the default expression is byte-identical to before; a
+    longer IR (e.g. the psych song's 5.5 s) gives a longer, lusher tail.
+    """
+    seconds = song.arrangement().reverb_seconds
+    k0 = 2.2 * 2.2 / seconds
+    k1 = 2.4 * 2.2 / seconds
+    expr = f"(random(0)*2-1)*exp(-{k0:g}*t)|(random(1)*2-1)*exp(-{k1:g}*t)"
     song.logs.mkdir(parents=True, exist_ok=True)
     ffmpeg(
         [
@@ -28,7 +36,7 @@ def make_ir(song: Song) -> None:
             "-f",
             "lavfi",
             "-i",
-            f"aevalsrc='{expr}':s=48000:d=2.2",
+            f"aevalsrc='{expr}':s=48000:d={seconds:g}",
             "-c:a",
             "pcm_f32le",
             song.ir,

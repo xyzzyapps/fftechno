@@ -1,0 +1,7 @@
+amovie=samples/stoner_kit/ride.wav[s0];
+[s0]asplit=4[s0_0][s0_1][s0_2][s0_3];
+[s0_0]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.7,asetpts=N/SR/TB,highpass=f=3000,equalizer=f=5000:t=q:w=1:g=3,volume=1.6,adelay=0:all=1[h0];
+[s0_1]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.7,asetpts=N/SR/TB,highpass=f=3000,equalizer=f=5000:t=q:w=1:g=3,volume=1.6,adelay=750.9132:all=1[h1];
+[s0_2]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.7,asetpts=N/SR/TB,highpass=f=3000,equalizer=f=5000:t=q:w=1:g=3,volume=1.6,adelay=1499.0712:all=1[h2];
+[s0_3]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.7,asetpts=N/SR/TB,highpass=f=3000,equalizer=f=5000:t=q:w=1:g=3,volume=1.6,adelay=2255.9844:all=1[h3];
+[h0][h1][h2][h3]amix=inputs=4:normalize=0,asoftclip=type=tanh:threshold=0.9,asetpts=N/SR/TB,atrim=0:3,apad=whole_len=144000,aloop=loop=-1:size=144000,atrim=0:240[out]

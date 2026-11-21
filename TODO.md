@@ -238,6 +238,101 @@ The first **sample-based** song: real audio files instead of `aevalsrc` oscillat
 - **Not used:** loop filters. `aloop` drifts at this grid, so hits are placed with
   absolute delays (a long song means one filter chain per hit).
 
+### Rework - full 4-minute sample trip hop (in progress)
+
+User was unhappy with the earlier results; the repo had also moved on (a committed
+synth `triphop` at 84 BPM + the sample route). A stale-architecture rewrite had
+clobbered `songs/triphop/`; **restored from HEAD** and deleted the redundant
+`th_*` templates it added.
+
+- **`songs/triphop_samples/` is now a full track**: 84 BPM, 84 bars = 4:00, D minor.
+  Drums are real samples - the **Amen** varispeeded **136 -> 84** (`rate=0.617647`)
+  and trimmed to exactly two bars so its backbeat lands on the grid (the old
+  `rate=0.81` did not fit the bar), high-passed to sit in the midrange; the TR-909 SP
+  kit supplies kick / snare / hats, the snare given a dark plate tail via per-hit
+  `fx` `aecho`.
+- Harmony / hook / dust are the synth voices reused from `songs/triphop`
+  (`sub`, `ep`, `strings`, `bell`, `horn`, `dubstab`, `vinyl`) on the same 8-bar
+  Dm9-Gm9-Bbmaj7-A7 loop; 12 stems, sparse half-time arrangement, low global reverb.
+- All 12 filter graphs dry-run clean; built `techno_v3.wav` (240 s, -12.9 LUFS).
+- **Rebalanced** after measuring stems: the snare peaked ~10 dB under the kick and
+  the hats/hook were buried while the sub was hottest - wrong for the genre. Boosts
+  now snare 3.2 / hat 1.8 / brk 1.3 / bell 1.7, sub 1.1 / kick 1.6. Re-mixed (stems
+  unchanged) -> **`techno_v4.wav`**, -13.0 LUFS / -1.1 dBTP.
+- Break verified: loops seamlessly every 2 bars, backbeat near 2 & 4 (the kit snare
+  supplies the precise grid on top).
+- **Arrangement made coherent** (user: "elements present but arrangement
+  incoherent"): the old boundaries (40/64/72/76/84) cut across the 8-bar chord
+  phrase and layers toggled unannounced. Now **80 bars = 10 x 8-bar phrases**, every
+  boundary on a phrase; added self-timed `roll` (rising snare fill, last 2 beats of
+  each phrase) + `rise` (reversed swell) as transition markers; clear arc
+  intro -> pulse -> groove -> hook -> breakdown -> drop -> peak -> dub space ->
+  final -> outro bookend. Verified roll fires at bars 7.5/15.5/23.5/... .
+  -> **`techno_v5.wav`**, 228.6 s, -13.0 LUFS / -1.1 dBTP.
+- **New arrangement, same elements** (user request): the **break loop is now the
+  spine** - it opens the track alone with vinyl (crate-dig), stays present until the
+  outro; sub/kick lock in at 8, chords at 16, hook at 24; a **one-bar full stop**
+  (bar 39, dust only) sets up the drop at 40; two dub breakdowns; outro returns to
+  the opening loop. Verified the stop: bars 36-39 -12 dB RMS, 39-40 -29 dB, 40-43
+  -11 dB. Re-mixed from existing stems -> **`techno_v6.wav`**, -13.0 LUFS / -1.1 dBTP.
+- **User feedback: opening break good; the kit layered on top bad; bass + synth
+  good.** The break already carries kick/snare/hats, so the added 909 kit
+  double-struck and clashed. **Removed the sampled kick/snare/hat/ohat**; the break
+  is now the only drum source, with sub + synth voices + dust + fills over it.
+  Side-chain re-keyed to `brk` (sub ducks to the break). -> **`techno_v7.wav`**,
+  -13.0 LUFS / -1.1 dBTP.
+- **Minimal pass** (user: "more minimalistic, the fill/riser is bad, different key
+  for the sub, remove the bells"). Palette cut to **four elements - `brk`, `sub`,
+  `ep`, `vinyl`**; removed the sampled kit rows, `strings`, `bell`, `horn`, `stab`,
+  `roll`, `rise`. **Sub re-keyed**: it was playing D-G-Bb-A while the chord loop is
+  **Am-Bb-Dm-A7**, so it clashed on two chords; now follows the real roots
+  **A-Bb-D-A** (`notes=55|58.27|73.42|55`). One-bar stop kept.
+  -> **`techno_v8.wav`**, 228.6 s, -13.0 LUFS / -1.1 dBTP; stop verified
+  (36-39 -12.6 dB, 39-40 -29.8 dB, 40-43 -12.2 dB). Stems: sub RMS -12.2,
+  brk -23.8, ep -22.8, vinyl -32.4. Note: this still uses the **Amen sample** for
+  `brk`; awaiting the user's choice of sample vs constructed break.
+- **Sub improved** (user: "only the sub needs to be improved"). New
+  `templates/sub_min.txt` (this song only; `sub.txt` untouched for `triphop`):
+  root sine + 2nd (0.32) + 3rd (0.12) harmonics for definition, a small onset pitch
+  drop (1.5 Hz) for punch, an attack/sustain/decay/**release** envelope over the
+  2-bar note, and **no `asubboost` / low-shelf bump** (that was the woolly boom).
+  Level trimmed. Sub stem peak -4.1 -> -9.9 dB, RMS -12.2 -> -15.4 dB.
+  -> **`techno_v9.wav`**, -13.0 LUFS / -2.9 dBTP.
+- **Break loop fixed** (user: "the break is not evenly looped"). Root cause: the
+  Amen file is **not** 136 BPM as named - its pattern repeats every **1.605 s**
+  (a 1-bar period at ~149.5 BPM), so `rate=0.617647` (assuming 136) made the 2-bar
+  window mismatch the phrase and every repeat jumped. Correct rate = 84/149.53 =
+  **0.56176**, trim 2 bars. Verified: brk self-correlation at the **5.7143 s** loop
+  point = **0.957** (tiles exactly).
+- **Async sub** (user: "its own melody line, asynchronous"). New
+  `templates/sub_async.txt`: a 20-note A-minor melody gated on its own **0.69 s**
+  clock (not the bar's 0.7143 s) over a **13.8 s** phrase, so it drifts against the
+  2.857 s bar; laid back 0.13 s; side-chain ducking removed (`ratio=1`).
+- **Sub extent** (user: "as long as the melody line of the synths, nowhere else"):
+  sub gain is 0 before bar 16 (it used to enter at 8, alone); it now enters with the
+  piano and leaves with it. Verified low-band (<80 Hz) RMS: bars 8-16 **-34.6 dB**
+  (same as intro) vs bars 16-24 **-15.0 dB**.
+  -> **`techno_v12.wav`**, -13.0 LUFS / -2.4 dBTP.
+- **Bass note length = synth note length** (user: "the bass notes should be as long as
+  the synth lines too"). The sub's `unit` is now `{{bar}}`, so every note holds one
+  bar (the `ep` holds one chord per bar); the melody is a **5-bar** phrase (5 notes)
+  so it still drifts against the 8-bar harmony, laid back 0.13 s, with attack/
+  sustain/release. Verified: sub amplitude-envelope period **2.850 s** vs bar
+  **2.857 s** (corr 0.942).
+  -> **`techno_v13.wav`**, -13.0 LUFS / -3.7 dBTP.
+- **Sub quiet + punchy** (user: "reduce its volume a lot, make it punchy"). `amp`
+  0.55 -> 0.26, boost 1.1 -> 0.9; envelope now fast attack (`atk=60`, ~16 ms), low
+  sustain (0.35), a short pitch thump (`drop=0.25`, `rate=70`) and harmonics that
+  decay in ~60 ms (`pdec=16`) over the sustained sub. Sub RMS -12.1 -> **-20.7 dB**
+  (-8.6 dB), crest 4.6 -> **9.0 dB** (punchier). Note length still one bar.
+  -> **`techno_v14.wav`**, -13.0 LUFS / -1.1 dBTP.
+- **Cover + YouTube video** (user request). Cropped `image.jpg` (1152x1712) to a
+  1080x1080 square that keeps the "ASYNCHRONOUS" title and drops the Grok
+  watermark -> `output/triphop_samples/cover.jpg`. Built
+  `output/triphop_samples/ASYNCHRONOUS_1080p.mp4`: 1920x1080 H.264 High / AAC 320k
+  48 kHz stereo, 228.57 s, `+faststart`, 1 s fade-in / 2 s fade-out, the cover
+  centred on a blurred+darkened copy of itself. ~19 MB.
+
 ### Optional next (samplers)
 
 - Loop a one-bar pattern without per-hit expansion (a two-stage build: render the bar
@@ -248,3 +343,93 @@ The first **sample-based** song: real audio files instead of `aevalsrc` oscillat
   row, not a filter error (e.g. `rim`/`snare-short` are fetched but unused).
 - `fftechno/md.py` is not black-clean under the installed black (pre-existing, not
   touched here); `task lint` will flag it.
+
+## Done - `psych` (1960s psychedelic rock / wall of sound)
+
+110 BPM, 110 bars = 4:00, E minor, instrumental, **no samples**. Built after the
+request "psychedelic 1960s rock or stoner rock with wall of sound, without samples,
+heavy reverb"; the psych direction was taken.
+
+- **New templates** (all `aevalsrc`): `guitar_fuzz.txt` (root/fifth/octave power-chord
+  wall, detuned pairs, tanh fuzz, cab EQ, phaser, slap), `guitar_lead.txt` (fuzz lead
+  with vibrato + EQ), `organ.txt` (square drawbars, tremolo + chorus), `bass_rock.txt`
+  and `tamb.txt`. Drums reuse `kick_trip/snare/tom/hat_step/ride/crash`; the wash
+  reuses `pad.txt`.
+- **Wall of sound**: 13 stems - two detuned fuzz guitars panned 0.85/0.15 and
+  0.15/0.85, organ chord, mellotron pad, tambourine, rock kit; `stereo_width` 1.25,
+  bus compressor for glue.
+- **Heavy reverb**: new optional `reverb_seconds` scalar in `song.md` (default 2.2,
+  verified byte-identical for existing songs) builds a **5.5 s** IR in `make_ir`;
+  `reverb_send` 0.55, `reverb_wet` 1.0. Measured tail: -22.6 / -29.3 / -37.8 dB at
+  236/238/239 s.
+- **Build**: 96 kHz source (`sr: 96000`) instead of 192 kHz - 192 kHz took >15 min
+  and was killed; 96 kHz is still >4x the 9 kHz guitar low-pass.
+- **Master**: 240.000 s, -12.9 LUFS, -0.9 dBTP, LRA 2.9 LU.
+- **Bug found and fixed**: `guitar_lead` (vibrato + aphaser + aecho + EQ) grew
+  unstable over the full 240 s (peak `inf` / RMS `nan`); removing any one of those
+  four was stable. The lead now has no phaser/echo (the global reverb covers the
+  space) and is stable at peak -3.2 dB across the whole song.
+- **Regression**: `synth --song minimal` produces no diff; the default IR hash is
+  identical.
+
+### Optional next (psych)
+
+- Per-stem reverb sends (the `Sends` table, still in "Optional next" above) so the
+  kick/bass stay dry while the guitars wash.
+- A vocal (spoken/TTS) or a synth "vocal" lead if the instrumental needs a hook.
+
+## Done - `stoner` (stoner rock)
+
+76 BPM, 76 bars = 4:00, D minor / drop-D, instrumental, no samples. Built after
+"psych is not that nice; do stoner rock".
+
+- **New template**: `guitar_wah.txt` (single-note fuzz + phaser; no vibrato/echo,
+  stable over 240 s). Reuses `guitar_fuzz.txt`, `bass_rock.txt`, `organ.txt` and the
+  drum templates.
+- **Riff**: driving 8th-note D-D-F-G / D-D-F-A, two detuned guitars panned 0.8/0.2
+  and 0.2/0.8, thick fuzz bass, big sparse drums, low organ drone in the
+  intro/breakdown.
+- **Found and fixed the quiet-guitar bug**: `aecho`'s `in_gain x out_gain` was
+  attenuating the guitar by ~11 dB (0.7 x 0.4). The stoner guitars use 1.0/1.0 with
+  decay 0.1; the guitar then matched the bass in the 300-3k band (both ~-20 dB). The
+  80 Hz high-pass was also cutting the D2 fundamental (73 Hz); lowered to 55 Hz.
+- **Master**: 240.000 s, -12.9 LUFS, -1.1 dBTP, LRA 2.9 LU. 5.0 s IR.
+- **Stems**: 11, all peaks < 0; the two guitars differ.
+
+## Done - `stoner_samples` (sample-based stoner rock)
+
+80 BPM, 80 bars = 4:00, C minor / drop-C, built from downloads.
+
+- **Sources** (`samples/manifest.md`, set `stoner_kit`): Pearl Master Studio acoustic
+  drums (CC-BY 3.0), FreePats `FSBS-dist1` pre-distorted electric guitar and
+  `electric-bass-YR` picked bass (both CC0). The FLAC sources are downloaded under
+  `.wav` names and `prepare` transcodes them to 48 kHz PCM.
+- **Sampler extension** (`fftechno/sampler.py`): `notes`/`root` per-hit pitch
+  (`asetrate`), a per-hit `fx` chain (`;`-separated), a **multi-sample map**
+  (`path@root|...`, nearest root per note: C2/F2/C3 guitars, C3/G3 lead, C/E2 bass),
+  and `pat` instruments now build one bar and loop it with `asetpts` + `atrim` +
+  `apad=whole_len` + `aloop` (sample-accurate; the graph is ~4 KB instead of 640
+  chains). Fixed a `pat` semantics bug: the list is **step indices**, not a gate
+  pattern - the riff now plays 8ths at 0/2/4/6/8/10/12/14, not 16 duplicated hits.
+  `hits` still uses the per-hit + silent-bed path.
+- **Song**: drop-C riff C-C-Eb-F / C-C-Eb-G on two detuned sampled guitars, sampled
+  bass and Pearl drums; 10 stems; 5 s room.
+- **Master**: 240.000 s, -13.0 LUFS, -2.0 dBTP, LRA 9.1 LU. Build ~14 s.
+- **Regression**: `synth --song triphop_samples` still renders; the `pat` loop change
+  alters the generated triphop_samples graphs (expected) but not the audio design.
+- **Take 2 (tone fix)**: the pre-distorted FreePats guitar was too dark (growl ~14 dB
+  down). Switched to the clean DI (`FSBS-direct`) + an Orange-style fuzz chain, power
+  chords (`chord=1|1.5:0.7|2:0.45`), sustain (trim 1.2 s) and a 2-bar riff
+  (`pat_bars=2`). Added `chord` and `pat_bars` to the sampler. Growl now ~4 dB below
+  the low-mids. Master `techno_v3.wav`: -13.0 LUFS / -2.7 dBTP, LRA 6.6, build ~13 s.
+- **Drums pass**: added `rr` (round-robin) and `jitter` (humanize) to the sampler.
+  The kit now uses round-robin snare/tom (3 Pearl samples each), ghost notes +
+  velocity accents, a groovier kick (1 / 2& / 3 / 4&) and tone shaping (kick
+  weight + click, snare body + crack, compression). Master `techno_v4.wav`:
+  -13.0 LUFS / -2.6 dBTP, LRA 6.7.
+
+### Optional next (sampler)
+
+- A dedicated drum room/plate reverb send (today the drums share the global 5 s room).
+- A sampled organ or tambourine for the chorus.
+- Longer-form arrangement variation (a real bridge, not just section gains).
