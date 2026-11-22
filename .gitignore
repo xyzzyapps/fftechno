@@ -2,6 +2,7 @@
 out2/
 build/
 dist/
+filters/
 asciii.bak
 tools/
 ascii/

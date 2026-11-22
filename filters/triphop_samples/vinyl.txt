@@ -1,3 +1,0 @@
-amovie=samples/vinyl/crackle.wav[s0];
-[s0]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:88.571429,asetpts=N/SR/TB,volume=0.8,adelay=0:all=1[h0];
-[h0]amix=inputs=1:normalize=0,asoftclip=type=tanh:threshold=0.9,asetpts=N/SR/TB,atrim=0:88.571428571429,apad=whole_len=4251429,aloop=loop=-1:size=4251429,atrim=0:228.571428571429[out]

@@ -15,11 +15,18 @@ elements only:
   soft attack per bar.
 - `vinyl` - the dust: a **90 s record-groove sample from YouTube** (see
   `samples/manifest.md`; not CC-licensed, used noncommercially), looped every 31
-  bars as-is with only a -1.9 dB gain trim (`gain=0.8`).
+  bars with only a -1.9 dB gain trim (`gain=0.8`). The sampler's shared mono fold
+  and `tanh 0.9` safety clip are the only other processing.
 
 `pat` is a list of 16th-step indices inside the pattern (not a 16-value gate string);
 `hits` places sparse hits at absolute 16th steps. `trim` is the seconds per copy;
-`rate` is varispeed; `fx` is a per-hit filter chain (`;` becomes `,`).
+`rate` is varispeed; `fx` is a per-hit filter chain (`;` becomes `,`). Every sampler
+stem is resampled to 48 kHz, folded to mono and summed through
+`asoftclip=type=tanh:threshold=0.9`.
+
+The effect order for `sub` and `ep` lives in `templates/sub_async.txt` and
+`templates/ep.txt`; `sounds.md` holds their parameter values. The complete chain
+for every stem is listed in `docs/SONG_EXPLANATION.md`.
 
 sr: 192000
 lp: 16000

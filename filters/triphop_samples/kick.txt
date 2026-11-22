@@ -1,5 +1,0 @@
-amovie=samples/triphop_kit/kick.wav[s0];
-[s0]asplit=2[s0_0][s0_1];
-[s0_0]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.6,asetpts=N/SR/TB,volume=1,adelay=0:all=1[h0];
-[s0_1]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.6,asetpts=N/SR/TB,volume=1,adelay=1785.714285714286:all=1[h1];
-[h0][h1]amix=inputs=2:normalize=0,asoftclip=type=tanh:threshold=0.9,asetpts=N/SR/TB,atrim=0:2.857142857143,apad=whole_len=137143,aloop=loop=-1:size=137143,atrim=0:228.571428571429[out]

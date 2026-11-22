@@ -92,8 +92,8 @@ Derived: `beat = 60/155 = 0.387097 s`, `step (16th) = 0.096774 s`,
 Sample-based songs replace the template branch with
 `samples/manifest.md -> python -m fftechno samples -> samples/<set>/*.wav ->
 sampler.graph`. The optional `audio --out DIR` flag changes the output root from
-`output/` to `DIR` (for a clean audit build, e.g. `--out out2`); `filters/` stays
-shared and is regenerated in place.
+`output/` to `DIR` (for a clean audit build, e.g. `--out out2`); `filters/` is
+generated and gitignored, and stays in the repo for all output roots.
 
 ## 5. Build pipeline
 
@@ -103,7 +103,7 @@ Every command except `samples` takes `--song <name>` (default `basement`).
 
 | Command | Phases |
 |---------|--------|
-| `synth --song S` | `songs/S/sounds.md` + `templates/` -> `filters/S/<name>.txt` (oscillator templates and sampler graphs) |
+| `synth --song S` | `songs/S/sounds.md` + `templates/` -> `filters/S/<name>.txt` (generated, gitignored; oscillator templates and sampler graphs) |
 | `samples [--force]` | `samples/manifest.md` -> download + normalise the files under `samples/` (no `--song`) |
 | `audio --song S [--out DIR] [--safe] [--tts kitten\|piper\|flite]` | `synth` -> IR -> vocals -> stems -> mix -> master -> `<out>/S/techno.wav` |
 | `girl --song S [--look edge\|pollock\|outline\|photo] [--mode reset\|trail\|build]` | picture source -> look -> `output/S/girl_loop.mp4` + picture data |
@@ -654,7 +654,8 @@ songs/<name>/                control surfaces: song.md, sounds.md (+ optional
 templates/*.txt              synth schematics: the techno set, its variants
                              (kick_verb, hat_rand), the trip-hop set, and examples
                              (sax, rhodes, beeps, growl, rim, tom)
-filters/<name>/*.txt         generated graphs + vox.txt (shared output, even with --out)
+filters/<name>/*.txt         generated graphs + vox.txt (gitignored; shared across
+                             output roots, even with --out)
 fftechno/                    config, md, song, looks, effects, proc (build lock),
                              audio, synth, sampler, samples, arrangement, vox, girl,
                              matte, video, cli, visualizer.vpy
@@ -662,6 +663,7 @@ samples/                     manifest.md (tracked) + downloaded sets (gitignored
                              triphop_kit/, breaks/, vinyl/, stoner_kit/
 pyproject.toml LICENSE.md README.md SPEC.md TODO.md
 docs/AEVAL_TUTORIAL.md       the aevalsrc/aeval guide
+docs/SONG_EXPLANATION.md     step-by-step build of triphop_samples
 docs/ffmpeg_cheatsheet.png   the one-page technique card (linked from README)
 docs/make_cheatsheet.py      its generator (Pillow + system fonts, render-only)
 output/<name>/               techno*.wav, techno_visualizer*.mp4, girl_loop*.mp4,
@@ -775,7 +777,8 @@ Four are registered: `edge`, `pollock`, `outline`, `photo`. Adding a look = one
 subclass (and, if it needs knobs, a `| name | key | value |` row in a song's
 `video.md`).
 
-`templates/`, `filters/<song>/`, `fftechno/visualizer.vpy` and the models in `tools/` are
+`templates/`, `filters/<song>/` (generated, gitignored), `fftechno/visualizer.vpy`
+and the models in `tools/` are
 shared across every song.
 
 ## 21. Sample-based songs - `samples/` + `fftechno/sampler.py`
@@ -865,10 +868,11 @@ and uses a 2-bar, 16-hit riff:
 
 **Tracked documentation.** `README.md` is the practical guide (setup, commands,
 editing, samples, video, troubleshooting). `SPEC.md` is this SRS.
-`docs/AEVAL_TUTORIAL.md` is the from-scratch `aevalsrc`/`aeval` guide. `TODO.md` is
-the open-work list only; the design history lives in section 23.
-`docs/ffmpeg_cheatsheet.png` and its generator are tracked because the card is
-embedded in the README.
+`docs/AEVAL_TUTORIAL.md` is the from-scratch `aevalsrc`/`aeval` guide.
+`docs/SONG_EXPLANATION.md` walks through the `triphop_samples` build with the render
+command first. `TODO.md` is the open-work list only; the design history lives in
+section 23. `docs/ffmpeg_cheatsheet.png` and its generator are tracked because the
+card is embedded in the README.
 
 **Rendered deliverables.** `output/` is gitignored. The current trip-hop assets are
 `output/triphop_samples/techno_v28.wav` (full 228.571 s render),
@@ -878,7 +882,8 @@ embedded in the README.
 earlier cuts are kept beside the current one.
 
 **Clean audit builds.** `python -m fftechno audio --song S --out out2` writes an
-independent tree under `out2/S/` (gitignored). `filters/S/` remains shared. This is
+independent tree under `out2/S/` (gitignored). `filters/S/` is generated and
+gitignored, and remains shared across output roots. This is
 the recommended way to verify every song without adding `_vN` files to `output/`.
 Current status: `basement` (240.000 s) and `triphop_beat` (21.818 s) completed an
 `out2` run; `hardgroove` was partial and the remaining songs were skipped. The full

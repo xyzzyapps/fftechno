@@ -1,1 +1,0 @@
-aevalsrc='0.55*((random(0)*2-1)*exp(-1.2*mod(t,17.4545))+0.3*(sin(2*PI*4200*t)+0.5*sin(2*PI*6800*t))*exp(-1.5*mod(t,17.4545)))':s=96000:d=240[src];[src]highpass=f=2500,lowpass=f=18000,aresample=48000[out]

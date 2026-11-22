@@ -1,5 +1,0 @@
-amovie=samples/triphop_kit/snare.wav[s0];
-[s0]asplit=2[s0_0][s0_1];
-[s0_0]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.6,asetpts=N/SR/TB,highpass=f=120,aecho=0.6:0.7:120|240|360:0.4|0.25|0.15,lowpass=f=6500,volume=0.9,adelay=714.285714285714:all=1[h0];
-[s0_1]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.6,asetpts=N/SR/TB,highpass=f=120,aecho=0.6:0.7:120|240|360:0.4|0.25|0.15,lowpass=f=6500,volume=0.9,adelay=2142.857142857143:all=1[h1];
-[h0][h1]amix=inputs=2:normalize=0,asoftclip=type=tanh:threshold=0.9,asetpts=N/SR/TB,atrim=0:2.857142857143,apad=whole_len=137143,aloop=loop=-1:size=137143,atrim=0:228.571428571429[out]

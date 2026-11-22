@@ -1,3 +1,0 @@
-amovie=samples/triphop_kit/clap.wav[s0];
-[s0]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.4,asetpts=N/SR/TB,volume=0.55,adelay=2045.454545454545:all=1[h0];
-[h0]amix=inputs=1:normalize=0,asoftclip=type=tanh:threshold=0.9,asetpts=N/SR/TB,atrim=0:2.727272727273,apad=whole_len=130909,aloop=loop=-1:size=130909,atrim=0:21.818181818182[out]

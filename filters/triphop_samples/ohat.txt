@@ -1,5 +1,0 @@
-amovie=samples/triphop_kit/hat-open.wav[s0];
-[s0]asplit=2[s0_0][s0_1];
-[s0_0]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.5,asetpts=N/SR/TB,volume=0.3,adelay=1071.428571428572:all=1[h0];
-[s0_1]aresample=48000,aformat=sample_fmts=fltp:channel_layouts=mono,atrim=0:0.5,asetpts=N/SR/TB,volume=0.3,adelay=2500:all=1[h1];
-[h0][h1]amix=inputs=2:normalize=0,asoftclip=type=tanh:threshold=0.9,asetpts=N/SR/TB,atrim=0:2.857142857143,apad=whole_len=137143,aloop=loop=-1:size=137143,atrim=0:228.571428571429[out]
