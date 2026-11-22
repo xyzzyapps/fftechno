@@ -24,10 +24,6 @@ track by editing its markdown files.
 
 If you can edit a spreadsheet, you can remix a track.
 
-**Watch it on YouTube:** [Xyzzy - Speak to me // Slopcore hardgroove](https://www.youtube.com/watch?v=spD_3V72k6Y)
-
-[![Xyzzy - Speak to me // Slopcore hardgroove - click to watch on YouTube](https://i.ytimg.com/vi/spD_3V72k6Y/maxresdefault.jpg)](https://www.youtube.com/watch?v=spD_3V72k6Y)
-
 ---
 
 ## What you get
@@ -61,6 +57,11 @@ Each song is a folder. `song.md` (arrangement) and `sounds.md` (recipes) are
 required; `vocals.md` and `video.md` are optional - without them a song is
 instrumental with no video. Build any of them with
 `python -m fftechno audio --song <name>`.
+
+## Example songs
+
+- [Xyzzy - Asynchronous](https://youtu.be/THflj007XOo)
+- [Xyzzy - Speak to me // Slopcore hardgroove](https://www.youtube.com/watch?v=spD_3V72k6Y)
 
 ## Sample-based songs
 
