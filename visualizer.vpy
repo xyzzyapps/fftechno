@@ -13,7 +13,7 @@ in Y/U/V, an audio data strip in the top rows), upscales to the song size (defau
 1920x1080), and runs a GPU GLSL shader (vs-placebo). The shader is assembled from
 the song's effect chain. It keeps the colour and masks the strip rows black.
 ``output/<song>/lyrics.json`` (written from ``vocals.md``) is drawn with a
-self-contained 5x7 bitmap font. There is no ``config.VOX_LINES``.
+self-contained 5x7 bitmap font.
 
 Pipeline
 --------

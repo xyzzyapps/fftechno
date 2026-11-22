@@ -70,15 +70,15 @@ Derived: `beat = 60/155 = 0.387097 s`, `step (16th) = 0.096774 s`,
       |  arrangement.py                            |  synth.py
       v                                            v
   mix filtergraph                              filters/<song>/<name>.txt
-  (output/<song>/logs/mix.txt)                       |
+  (<out>/<song>/logs/mix.txt)                        |
       |                                              |  audio.render_stems()
       |                                              v
-      |                               output/<song>/stems/<name>.wav  (+ vox.wav)
+      |                               <out>/<song>/stems/<name>.wav  (+ vox.wav)
       +--------------------+-------------------------+
                            v
-              mix  ->  output/<song>/mix_pre.wav
+              mix  ->  <out>/<song>/mix_pre.wav
                            v
-              master (2-pass loudnorm)  ->  output/<song>/techno.wav
+              master (2-pass loudnorm)  ->  <out>/<song>/techno.wav
                            v
               songs/<song>/video.md -> Look (picture) + effect chain (effects.py)
                            v
@@ -99,8 +99,7 @@ shared and is regenerated in place.
 
 Commands (`python -m fftechno ...`):
 
-Commander: every command except `samples` takes `--song <name>` (default
-`basement`).
+Every command except `samples` takes `--song <name>` (default `basement`).
 
 | Command | Phases |
 |---------|--------|
@@ -378,7 +377,8 @@ coordinates are built for that height (`assemble_shader(..., height)`).
      (crowd removed; the top truss margin is ignored); draw the **silhouette
      contour only** (`dilate(subj) & ~subj` - no interior/face lines) in white,
      plus the **blue hair chroma-keyed** from the source RGB.
-4. ffmpeg/numpy: `fps=30`, fit to 16:9 with black bars (`scale`+`pad`), then the look.
+4. ffmpeg/numpy: `fps=30`, fit the output frame (letterbox for `edge`/`pollock`,
+   or `fit`/`fill` for `photo`), then apply the look.
 5. Emit `output/<song>/girl_loop.mp4` (silent, versioned) and the frame data -
    `girl_frames.npy` (edge/pollock) or `girl_sprites.npy` + `girl_pick.npy`
    (outline).
@@ -635,7 +635,7 @@ fftechno/                    config, md, song, looks, effects, proc (build lock)
 samples/                     manifest.md (tracked) + downloaded sets (gitignored):
                              triphop_kit/, breaks/, vinyl/, stoner_kit/
 visualizer.vpy               the VapourSynth + GLSL video
-pyproject.toml LICENSE.md README.md SPEC.md TODO.md CHANGELOG.md
+pyproject.toml LICENSE.md README.md SPEC.md TODO.md AEVAL_TUTORIAL.md
                              AEVAL_TUTORIAL.md (the aevalsrc/aeval guide)
 docs/ffmpeg_cheatsheet.png   the one-page technique card (linked from README)
 docs/make_cheatsheet.py      its generator (Pillow + system fonts, render-only)
@@ -837,9 +837,9 @@ and uses a 2-bar, 16-hit riff:
 
 **Tracked documentation.** `README.md` is the practical guide (setup, commands,
 editing, samples, video, troubleshooting). `SPEC.md` is this SRS. `AEVAL_TUTORIAL.md`
-is the from-scratch `aevalsrc`/`aeval` guide. `CHANGELOG.md` records the work;
-`TODO.md` records the current open items. `docs/ffmpeg_cheatsheet.png` and its
-generator are tracked because the card is embedded in the README.
+is the from-scratch `aevalsrc`/`aeval` guide. `TODO.md` is the open-work list only;
+the design history lives in section 23. `docs/ffmpeg_cheatsheet.png`
+and its generator are tracked because the card is embedded in the README.
 
 **Rendered deliverables.** `output/` is gitignored. The current trip-hop assets are
 `output/triphop_samples/techno_v28.wav` (full 228.571 s render),
@@ -851,6 +851,9 @@ earlier cuts are kept beside the current one.
 **Clean audit builds.** `python -m fftechno audio --song S --out out2` writes an
 independent tree under `out2/S/` (gitignored). `filters/S/` remains shared. This is
 the recommended way to verify every song without adding `_vN` files to `output/`.
+Current status: `basement` (240.000 s) and `triphop_beat` (21.818 s) completed an
+`out2` run; `hardgroove` was partial and the remaining songs were skipped. The full
+nine-song run is the first open item in `TODO.md`.
 
 **Code audit (this pass).**
 
@@ -865,3 +868,47 @@ the recommended way to verify every song without adding `_vN` files to `output/`
 - The only known repository-level leftover is the separate
   `.worktrees/aeval` git worktree (branch `aeval-split`), which is not part of the
   main build.
+
+## 23. Design history and rejected directions
+
+The current files are the result of a few deliberate reversals. These notes preserve
+the durable reasoning behind the current design.
+
+- **Origin.** v0.1 was the hardgroove track (140 BPM) with an ASCII VapourSynth video
+  and an espeak-ng voice. v0.2 made songs folders, added `basement` and the
+  `outline`/`edge`/`pollock` looks; the later tracks are additional folders.
+
+- **Lossless port.** The hardgroove track was moved from hand-authored ffmpeg graphs
+  into markdown; substituting the recorded values reproduces the originals (verified
+  at <= -213 dB).
+- **Songs are folders.** The early per-song `Song` subclasses and the registry were
+  removed; `Song(name)` reads `songs/<name>/`. `fftechno/md.py` is the single
+  table/scalar reader for all four control files.
+- **Video became a pipeline.** The hard-coded shader was split into a `Look` source
+  plus an ordered `Effect` chain; the old shader is the built-in default chain, so a
+  song with no `effects:` renders unchanged. `photo` and `squares` later gained
+  framing, focus, shift, explicit half-sizes, rings and on/off presence.
+- **Stem tails are cut.** `audio.render_stems` cuts every stem at `song.duration`; an
+  effect tail (the blow's ping-pong delay) must not stretch the master. `Pan: keep`
+  passes an already-stereo stem through instead of folding it to a point. `Levels`
+  stems honour the `Pan` table too.
+- **`minimal`.** The dry 4-on-4 kick never drops; the random golden-ratio hat was
+  replaced by `hat_step`, and `ohat_dyn` varies decay and velocity per hit. The single
+  `blow` is a panned, arranged stem with a built-in ping-pong delay. The final
+  `Sections` row is exactly `fade_bars` long so the track does not end in silence.
+- **`psych`.** The 5.5 s convolution IR supplies the wall of sound. The fuzz lead's
+  phaser/echo combination grew unstable over 240 s and was removed. The stoner
+  guitars later exposed `aecho`'s `in_gain x out_gain` attenuation; they use a
+  transparent echo instead.
+- **`stoner_samples`.** Take 1's pre-distorted guitar was too dark; take 2 uses the
+  clean DI plus a per-hit fuzz chain, power chords, sustain and a 2-bar riff. The
+  sampler gained `rr`, `jitter`, `chord`, `pat_bars` and multi-sample maps; `pat` is a
+  list of step indices, not a gate pattern.
+- **`triphop_samples`.** The Amen's real period is ~149.5 BPM, not the "136" in its
+  filename; `rate=0.56176` makes the two-bar window land on the phrase. The sub is
+  bar-length and asynchronous; the vinyl is a real YouTube groove used as-is with a
+  -1.9 dB trim. The delivered cut removes two bars. Synthetic and CC0 vinyl
+  candidates, the Freesound bed and the sparse "silent groove" were rejected.
+- **Tooling.** ffmpeg 9 uses `-/filter_complex FILE`; outputs are versioned and never
+  overwritten; the build lock is exclusive; `--safe` is opt-in; `--out` keeps audit
+  builds out of `output/`.

@@ -27,7 +27,7 @@ tasks:
       - '{{.PY}} -m fftechno audio --song {{.song | default "basement"}}'
 
   girl:
-    desc: 'build the dancing-girl picture (song=basement)'
+    desc: 'build the picture loop (song=basement)'
     cmds:
       - '{{.PY}} -m fftechno girl --song {{.song | default "basement"}}'
 

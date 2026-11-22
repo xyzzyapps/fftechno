@@ -16,7 +16,7 @@ filter graph that plays an audio file on the step grid (see ``sampler.py``).
 Template language
 -----------------
 ``{{ key }}``                    value substitution
-``{{ if_steps(SEQ; GRID; DEF) }}``  expand a comma list into a nested
+``{{ if_steps(SEQ; GRID; DEF) }}``  expand a ``|``-separated list into a nested
                                  ``if(eq(GRID,0),v0, ... ,DEF)`` - used to build
                                  per-step melodies/patterns from markdown.
 """

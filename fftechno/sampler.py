@@ -19,8 +19,8 @@ with the nearest root (in semitones), so a wide riff shifts each sample less.
 
 Parameters (``key=value``, comma separated):
 
-``pat``   16th steps inside the pattern, looped (the pattern is built once and
-          looped with ``aloop``). Spans ``pat_bars`` bars (default 1).
+``pat``   16th-step indices inside the pattern, looped (the pattern is built once
+          and looped with ``aloop``). Spans ``pat_bars`` bars (default 1).
 ``pat_bars``  number of bars the ``pat`` pattern spans (default 1).
 ``hits``  absolute 16th steps from the song start (for sparse sounds, e.g. a break
           every two bars). Use ``pat`` or ``hits``, not both.
@@ -126,8 +126,8 @@ def _instances(song, params: dict[str, str]) -> list[tuple[int, float, float | N
         raise SystemExit("sounds.md: sampler 'notes' must match 'pat'/'hits' length")
     out: list[tuple[int, float, float | None]] = []
     for index, step in enumerate(raw):
-        # `pat` is a within-bar step (0-15) and the bar is looped; `hits` is
-        # absolute from the song start and is placed once.
+        # `pat` is a step index inside the pattern (0..pat_bars*16-1) and the pattern
+        # is looped; `hits` is absolute from the song start and is placed once.
         out.append(
             (
                 step,
