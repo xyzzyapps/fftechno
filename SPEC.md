@@ -870,9 +870,9 @@ and uses a 2-bar, 16-hit riff:
 editing, samples, video, troubleshooting). `SPEC.md` is this SRS.
 `docs/AEVAL_TUTORIAL.md` is the from-scratch `aevalsrc`/`aeval` guide.
 `docs/SONG_EXPLANATION.md` walks through the `triphop_samples` build with the render
-command first. `TODO.md` is the open-work list only; the design history lives in
-section 23. `docs/ffmpeg_cheatsheet.png` and its generator are tracked because the
-card is embedded in the README.
+command first, then a songwriting approach. `TODO.md` is the open-work list only;
+the design history lives in section 23. `docs/ffmpeg_cheatsheet.png` and its
+generator are tracked because the card is embedded in the README.
 
 **Rendered deliverables.** `output/` is gitignored. The current trip-hop assets are
 `output/triphop_samples/techno_v28.wav` (full 228.571 s render),

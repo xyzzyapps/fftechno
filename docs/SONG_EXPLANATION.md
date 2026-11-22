@@ -347,5 +347,79 @@ The chain order for `sub` and `ep` lives in their templates; every value is in
 - Master: two-pass `loudnorm` to `-13 LUFS` / `-1 dBTP` / LRA `11`, limiter
   `0.88`, 9 kHz high-shelf `+1.5 dB`, 48 kHz 16-bit triangular dither.
 
+## 12. How to approach writing a song like this
+
+This is the songwriting view; the render details are above.
+
+### 12.1 Separate the score from the instrument
+
+| File | Song-writing role |
+|---|---|
+| `song.md` | the score and mixing desk: tempo, form, entrances, levels, pan, global mix effects |
+| `sounds.md` | the instrument/patch sheet: one row per sound, its notes, sample and sound-design knobs |
+| `templates/*.txt` | the fixed signal chain inside a synth instrument |
+| `samples/manifest.md` | the sample library |
+
+Read the effects in two layers:
+
+- **`sounds.md` effects** shape one instrument or one sample hit.
+- **`song.md` Effects** process the whole summed mix.
+
+`Boosts`, `Sections` and `Pan` in `song.md` are not effects. They are balance,
+arrangement and placement. Mastering is global and not part of the song file.
+
+The signal flow, in song-writing terms:
+
+```text
+instrument/hit sound -> stem gain -> section gain -> pan
+                     -> sum -> global reverb / width / glue -> master
+```
+
+The current project has global reverb only; there is no per-stem send table yet.
+That is listed in `TODO.md`.
+
+### 12.2 A practical writing order
+
+1. **Set the frame.** `bpm`, `bars`, `fade_bars`. At 84 BPM, one bar is 2.857 s;
+   80 bars is 228.571 s.
+2. **Choose roles, not instruments.** Decide what each layer is for before naming
+   a sound.
+3. **Build the pulse.** Get the break or drum loop to fit the bar grid; shape it
+   with per-hit `fx`.
+4. **Write the harmony.** For `triphop_samples`, an 8-bar loop:
+   `Am | Bb | Dm | A7`.
+5. **Write the bass as a counterline.** Use a phrase length that does not match the
+   harmony: five bars against eight.
+6. **Add texture.** A long loop such as the 31-bar vinyl bed glues the track without
+   restarting every phrase.
+7. **Arrange with `Sections`.** Write the entrance, breakdown, stop, drop and fade
+   before fine-tuning sounds.
+8. **Balance and place.** Use `Boosts` and `Pan`; keep the sub centred.
+9. **Add global mix effects last.** Reverb send, bus compression, width, sidechain.
+10. **Tune the sound design last.** Per-hit `fx` and the `sub`/`ep` template knobs.
+
+### 12.3 The four roles in `triphop_samples`
+
+| Role | Sound | Writing job |
+|---|---|---|
+| pulse/backbone | Amen break | carries the rhythm; the only drum source |
+| low melody | sub | five-bar phrase drifting against the harmony |
+| harmony | electric piano | 8-bar chord loop, one attack per bar |
+| texture | vinyl | 31-bar atmosphere loop at low gain |
+
+Four strong roles are easier to arrange than twelve weak layers.
+
+### 12.4 How the parts relate
+
+- The **Amen** is cut to two bars. Its `rate` makes the source loop fit the 84 BPM
+  grid.
+- The **piano** changes chord every two bars inside an 8-bar loop.
+- The **sub** holds one note per bar for five bars, so it drifts against the piano.
+- The **vinyl** loops every 31 bars, so it does not line up with the 8-bar phrase.
+- The **one-bar stop** at 39-40 is an arrangement decision, not an effect.
+- The **sidechain ratio is 1**, so the sub is not ducked; its low level does the
+  work.
+- The **global reverb** is a send from the whole mix, not a per-stem insert.
+
 That is the whole chain: **Amen sample -> 40 absolute sampler hits -> stem WAV ->
 automated mix -> two-pass master -> two-bar trim**.
