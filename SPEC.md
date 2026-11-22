@@ -181,6 +181,10 @@ placeholder fails loudly.
   `if(eq(GRID,0),v0, if(eq(GRID,1),v1, ... , default))`. `seq` is a value (or param
   name), `grid` is an expression, `default` is a param name or a numeric literal.
 - Lists are `|`-separated; inside a markdown table cell the pipe is escaped `\|`.
+- Templates may be written over several indented lines. Blank lines and full-line
+  `#` comments are ignored; the remaining lines are joined with a single space
+  before substitution. Line breaks and indentation are insignificant, but a line
+  must not split a token.
 - `bar`, `step`, `beat` and `dur` are not written in `sounds.md`. `synth.py`
   computes them from `song.md` (`bpm` and `bars`) and injects them. One bar is
   `240/bpm` seconds, one beat is `60/bpm`, one step is a quarter of a beat, and
@@ -653,7 +657,9 @@ songs/<name>/                control surfaces: song.md, sounds.md (+ optional
                              vocals.md, video.md)
 templates/*.txt              synth schematics: the techno set, its variants
                              (kick_verb, hat_rand), the trip-hop set, and examples
-                             (sax, rhodes, beeps, growl, rim, tom)
+                             (sax, rhodes, beeps, growl, rim, tom); multiline with
+                             blank/# comment lines ignored
+templates/README.md          the extended-template format
 filters/<name>/*.txt         generated graphs + vox.txt (gitignored; shared across
                              output roots, even with --out)
 fftechno/                    config, md, song, looks, effects, proc (build lock),

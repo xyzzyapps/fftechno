@@ -1,1 +1,12 @@
-aevalsrc='{{amp}}*{{if_steps(gates; sgrid; 0)}}*(1-exp(-{{atk}}*{{sph}}))*({{sus}}+(1-{{sus}})*exp(-{{dec}}*{{sph}}))*(1-exp(-{{rel}}*({{unit}}-{{sph}})))*(sin(2*PI*{{if_steps(notes; sgrid; note_def)}}*({{sph}}+({{drop}}/{{rate}})*(1-exp(-{{rate}}*{{sph}}))))+{{h2}}*exp(-{{pdec}}*{{sph}})*sin(2*PI*{{if_steps(notes; sgrid; note_def)}}*2*{{sph}})+{{h3}}*exp(-{{pdec}}*{{sph}})*sin(2*PI*{{if_steps(notes; sgrid; note_def)}}*3*{{sph}}))':s={{sr}}:d={{dur}}[src];[src]lowpass=f={{lp_bass}}:t=q:w={{lp_q}},asoftclip=type=tanh:threshold={{clip}},lowpass=f={{lp}},aresample={{osr}}[out]
+# ffmpeg filtergraph template; blank lines and # comments are ignored.
+# synth.py joins the remaining lines with spaces before substitution.
+
+aevalsrc='{{amp}}*{{if_steps(gates; sgrid; 0)}}*(1-exp(-{{atk}}*{{sph}}))*({{sus}}
+        +(1-{{sus}})*exp(-{{dec}}*{{sph}}))*(1-exp(-{{rel}}*({{unit}}-{{sph}})))*(sin(2*PI*{{if_steps(notes; sgrid; note_def)}}*({{sph}}
+        +({{drop}}/{{rate}})*(1-exp(-{{rate}}*{{sph}}))))
+        +{{h2}}*exp(-{{pdec}}*{{sph}})*sin(2*PI*{{if_steps(notes; sgrid; note_def)}}*2*{{sph}})
+        +{{h3}}*exp(-{{pdec}}*{{sph}})*sin(2*PI*{{if_steps(notes; sgrid; note_def)}}*3*{{sph}}))':s={{sr}}:d={{dur}}[src];
+        [src]lowpass=f={{lp_bass}}:t=q:w={{lp_q}},
+        asoftclip=type=tanh:threshold={{clip}},
+        lowpass=f={{lp}},
+        aresample={{osr}}[out]

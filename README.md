@@ -122,8 +122,10 @@ templates/      one ffmpeg schematic per instrument, with {{placeholders}}
 filters/<song>/ the generated graphs written by `synth` / `audio` (gitignored)
 ```
 
-`templates/` is the schematic; `sounds.md` fills in the numbers. The generated graph is
-what ffmpeg actually runs.
+`templates/` is the schematic; `sounds.md` fills in the numbers. Templates are
+multiline for readability: blank lines and full-line `#` comments are ignored, and
+the remaining lines are joined with spaces before substitution. Break lines at `;`,
+`,` or before a `+`, never inside a token.
 
 A minimal `song.md` arrangement looks like this:
 

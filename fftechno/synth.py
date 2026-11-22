@@ -19,6 +19,10 @@ Template language
 ``{{ if_steps(SEQ; GRID; DEF) }}``  expand a ``|``-separated list into a nested
                                  ``if(eq(GRID,0),v0, ... ,DEF)`` - used to build
                                  per-step melodies/patterns from markdown.
+
+Templates may be multiline. Blank lines and full-line ``#`` comments are ignored;
+the remaining lines are joined with spaces before substitution. Line breaks and
+indentation are insignificant, but a line must not split a token.
 """
 
 from __future__ import annotations
@@ -108,8 +112,25 @@ def _val(values: dict[str, str], token: str, name: str) -> str:
     raise SystemExit(f"sounds.md: instrument '{name}' needs value '{token}'")
 
 
+def _preprocess(text: str) -> str:
+    """Collapse an extended template: drop blanks/comments, join lines with spaces.
+
+    A template may be written over several indented lines for readability. Only
+    complete ``#`` comment lines are removed; line breaks and indentation are
+    insignificant. A line must not split a token in half.
+    """
+    lines = []
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        lines.append(line)
+    return " ".join(lines)
+
+
 def _render(template: str, values: dict[str, str], name: str) -> str:
     """Expand ``if_steps`` calls, then substitute ordinary placeholders."""
+    template = _preprocess(template)
 
     def expand(match: re.Match[str]) -> str:
         """Turn one ``if_steps`` call into a nested ffmpeg ``if`` ladder."""

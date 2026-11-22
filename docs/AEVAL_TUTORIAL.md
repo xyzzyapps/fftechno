@@ -80,8 +80,9 @@ A "song" is a folder of markdown. `sounds.md` names an instrument and a template
 the template is a text file of `aevalsrc ... [src];[src]<filters>...[out]`.
 `fftechno/synth.py` substitutes `{{key}}` values and expands `{{if_steps(...)}}`
 into a nested `if(...)` ladder, writing a finished filtergraph to
-`filters/<song>/<name>.txt` (generated and gitignored). `fftechno/audio.py` then
-renders **each instrument alone**
+`filters/<song>/<name>.txt` (generated and gitignored). Templates are multiline;
+blank lines and `#` comment lines are ignored and the remaining lines are joined
+before substitution. `fftechno/audio.py` then renders **each instrument alone**
 to a WAV (`output/<song>/stems/<name>.wav`) - exactly a DAW "freeze/bounce to stem" -
 and `fftechno/arrangement.py` mixes the stems with automation, side-chain and reverb.
 

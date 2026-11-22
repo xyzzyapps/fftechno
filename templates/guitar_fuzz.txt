@@ -1,1 +1,16 @@
-aevalsrc='{{amp}}*{{if_steps(gates; grid; 0)}}*exp(-{{decay}}*mod(t,{{step}}))*((mod({{if_steps(notes; grid; note_def)}}*t,1)*2-1)+{{oct}}*(mod(2*{{if_steps(notes; grid; note_def)}}*t,1)*2-1)+{{fifth}}*(mod(1.5*{{if_steps(notes; grid; note_def)}}*t,1)*2-1)+{{det}}*(mod({{if_steps(notes; grid; note_def)}}*{{detune}}*t,1)*2-1)+{{det2}}*(mod({{if_steps(notes; grid; note_def)}}*{{detune2}}*t,1)*2-1))':s={{sr}}:d={{dur}}[src];[src]highpass=f={{hp}},asoftclip=type=tanh:threshold={{clip}},lowpass=f={{lpc}},equalizer=f={{eq_f}}:t=q:w=1:g={{eq_g}},aphaser=in_gain=0.8:out_gain=0.6:delay=3:decay=0.35:speed={{ph_speed}}:type=sinusoidal,lowpass=f={{lp}},aecho={{a1}}:{{a2}}:{{ad}}:{{adc}},aresample={{osr}}[out]
+# ffmpeg filtergraph template; blank lines and # comments are ignored.
+# synth.py joins the remaining lines with spaces before substitution.
+
+aevalsrc='{{amp}}*{{if_steps(gates; grid; 0)}}*exp(-{{decay}}*mod(t,{{step}}))*((mod({{if_steps(notes; grid; note_def)}}*t,1)*2-1)
+        +{{oct}}*(mod(2*{{if_steps(notes; grid; note_def)}}*t,1)*2-1)
+        +{{fifth}}*(mod(1.5*{{if_steps(notes; grid; note_def)}}*t,1)*2-1)
+        +{{det}}*(mod({{if_steps(notes; grid; note_def)}}*{{detune}}*t,1)*2-1)
+        +{{det2}}*(mod({{if_steps(notes; grid; note_def)}}*{{detune2}}*t,1)*2-1))':s={{sr}}:d={{dur}}[src];
+        [src]highpass=f={{hp}},
+        asoftclip=type=tanh:threshold={{clip}},
+        lowpass=f={{lpc}},
+        equalizer=f={{eq_f}}:t=q:w=1:g={{eq_g}},
+        aphaser=in_gain=0.8:out_gain=0.6:delay=3:decay=0.35:speed={{ph_speed}}:type=sinusoidal,
+        lowpass=f={{lp}},
+        aecho={{a1}}:{{a2}}:{{ad}}:{{adc}},
+        aresample={{osr}}[out]

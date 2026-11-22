@@ -1,1 +1,12 @@
-aevalsrc='{{amp}}*{{if_steps(gates; grid; 1)}}*({{h1}}*(gt(mod({{if_steps(n1; grid; note_def)}}*t,1),0.5)*2-1)+{{h2}}*(gt(mod({{if_steps(n2; grid; note_def)}}*t,1),0.5)*2-1)+{{h3}}*(gt(mod({{if_steps(n3; grid; note_def)}}*t,1),0.5)*2-1))':s={{sr}}:d={{dur}}[src];[src]highpass=f={{hp}},lowpass=f={{lp}},tremolo=f={{tremf}}:d={{tremd}},chorus=0.6:0.9:50|60:0.4|0.32:0.25|0.4:2|2.3,asoftclip=type=tanh:threshold={{clip}},aresample={{osr}}[out]
+# ffmpeg filtergraph template; blank lines and # comments are ignored.
+# synth.py joins the remaining lines with spaces before substitution.
+
+aevalsrc='{{amp}}*{{if_steps(gates; grid; 1)}}*({{h1}}*(gt(mod({{if_steps(n1; grid; note_def)}}*t,1),0.5)*2-1)
+        +{{h2}}*(gt(mod({{if_steps(n2; grid; note_def)}}*t,1),0.5)*2-1)
+        +{{h3}}*(gt(mod({{if_steps(n3; grid; note_def)}}*t,1),0.5)*2-1))':s={{sr}}:d={{dur}}[src];
+        [src]highpass=f={{hp}},
+        lowpass=f={{lp}},
+        tremolo=f={{tremf}}:d={{tremd}},
+        chorus=0.6:0.9:50|60:0.4|0.32:0.25|0.4:2|2.3,
+        asoftclip=type=tanh:threshold={{clip}},
+        aresample={{osr}}[out]

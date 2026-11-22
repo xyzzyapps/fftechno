@@ -1,1 +1,9 @@
-aevalsrc='{{amp}}*{{if_steps(gates; grid; 0)}}*({{noise_amt}}*(random(0)*2-1)*exp(-{{decay}}*mod(t,{{step}}))+{{tone_amt}}*(sin(2*PI*{{f1}}*mod(t,{{step}}))+{{tmix}}*sin(2*PI*{{f2}}*mod(t,{{step}})))*exp(-{{decay2}}*mod(t,{{step}})))':s={{sr}}:d={{dur}}[src];[src]highpass=f={{hp}},lowpass=f={{lp}},aresample={{osr}}[out]
+# ffmpeg filtergraph template; blank lines and # comments are ignored.
+# synth.py joins the remaining lines with spaces before substitution.
+
+aevalsrc='{{amp}}*{{if_steps(gates; grid; 0)}}*({{noise_amt}}*(random(0)*2-1)*exp(-{{decay}}*mod(t,{{step}}))
+        +{{tone_amt}}*(sin(2*PI*{{f1}}*mod(t,{{step}}))
+        +{{tmix}}*sin(2*PI*{{f2}}*mod(t,{{step}})))*exp(-{{decay2}}*mod(t,{{step}})))':s={{sr}}:d={{dur}}[src];
+        [src]highpass=f={{hp}},
+        lowpass=f={{lp}},
+        aresample={{osr}}[out]

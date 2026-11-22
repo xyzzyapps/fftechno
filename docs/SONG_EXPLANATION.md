@@ -71,8 +71,10 @@ filters/triphop_samples/vinyl.txt
 ```
 
 The two sampler rows become `amovie` graphs. The two instrument rows are templates
-in `templates/` with values substituted. These graph files are **generated and
-gitignored**; `templates/`, `sounds.md` and the code are the source of truth.
+in `templates/` with values substituted. Templates are written multiline; blank
+lines and full-line `#` comments are ignored, and the remaining lines are joined
+before substitution. These graph files are **generated and gitignored**;
+`templates/`, `sounds.md` and the code are the source of truth.
 
 ## 4. The break: `brk.txt`
 

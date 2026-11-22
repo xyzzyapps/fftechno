@@ -1,1 +1,13 @@
-aevalsrc='{{amp}}*{{if_steps(gates; grid; 0)}}*exp(-{{decay}}*mod(t,{{step}}))*((mod({{if_steps(notes; grid; note_def)}}*t,1)*2-1)+{{sub}}*sin(2*PI*{{if_steps(notes; grid; note_def)}}*0.5*t)+{{oct}}*(mod(2*{{if_steps(notes; grid; note_def)}}*t,1)*2-1))':s={{sr}}:d={{dur}}[src];[src]highpass=f={{hp}},asoftclip=type=tanh:threshold={{clip}},lowpass=f={{lpc}},vibrato=f={{vibf}}:d={{vibd}},equalizer=f={{eq_f}}:t=q:w=1:g={{eq_g}},lowpass=f={{lp}},aresample={{osr}}[out]
+# ffmpeg filtergraph template; blank lines and # comments are ignored.
+# synth.py joins the remaining lines with spaces before substitution.
+
+aevalsrc='{{amp}}*{{if_steps(gates; grid; 0)}}*exp(-{{decay}}*mod(t,{{step}}))*((mod({{if_steps(notes; grid; note_def)}}*t,1)*2-1)
+        +{{sub}}*sin(2*PI*{{if_steps(notes; grid; note_def)}}*0.5*t)
+        +{{oct}}*(mod(2*{{if_steps(notes; grid; note_def)}}*t,1)*2-1))':s={{sr}}:d={{dur}}[src];
+        [src]highpass=f={{hp}},
+        asoftclip=type=tanh:threshold={{clip}},
+        lowpass=f={{lpc}},
+        vibrato=f={{vibf}}:d={{vibd}},
+        equalizer=f={{eq_f}}:t=q:w=1:g={{eq_g}},
+        lowpass=f={{lp}},
+        aresample={{osr}}[out]
