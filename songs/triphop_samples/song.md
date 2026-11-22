@@ -31,7 +31,7 @@ low_bus: sub
 | brk   | 1.30  |
 | sub   | 0.90  |
 | ep    | 1.30  |
-| vinyl | 1.00  |
+| vinyl | 0.85  |
 
 ## Sections
 

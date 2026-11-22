@@ -10,7 +10,8 @@ elements only:
   (one note per two bars), side-chained to the break.
 - `ep` - a **dusty FM electric piano** on the 8-bar loop Am - Bb - Dm - A7, one
   soft attack per bar.
-- `vinyl` - the dust: sparse crackle + hiss + wow.
+- `vinyl` - the dust: a **real CC0 record-crackle sample** (Freesound 637931 by
+  kyles, 74.7 s stereo), looped every 26 bars with just a gentle top roll-off.
 
 `pat` = 16th steps inside one bar (looped); `hits` = absolute 16th steps (the break,
 every two bars). `trim` seconds per copy; `rate` varispeed; `fx` per-hit filters
@@ -32,6 +33,7 @@ sgrid: floor(mod(t+{{bar}}*5-0.13,{{bar}}*5)/{{bar}})
 | name  | sample                  | params |
 |-------|-------------------------|--------|
 | brk   | samples/breaks/amen.wav | hits=0\|32\|64\|96\|128\|160\|192\|224\|256\|288\|320\|352\|384\|416\|448\|480\|512\|544\|576\|608\|640\|672\|704\|736\|768\|800\|832\|864\|896\|928\|960\|992\|1024\|1056\|1088\|1120\|1152\|1184\|1216\|1248, rate=0.56176, trim=5.714286, gain=0.8, fx=highpass=f=200;lowpass=f=8000;asoftclip=type=tanh:threshold=0.8 |
+| vinyl | samples/vinyl/crackle.wav | pat=0, pat_bars=31, trim=88.571429, gain=0.8 |
 
 ## Instruments
 
@@ -39,4 +41,3 @@ sgrid: floor(mod(t+{{bar}}*5-0.13,{{bar}}*5)/{{bar}})
 |-------|-----------|------------|
 | sub   | sub_async.txt | amp=0.26, atk=60, sus=0.35, dec=1.2, rel=10, drop=0.25, rate=70, h2=0.55, h3=0.20, pdec=16, lp_bass=110, lp_q=0.7, clip=0.95, note_def=55, gates=1\|1\|1\|1\|1, notes=55\|73.42\|65.41\|82.41\|55 |
 | ep    | ep.txt    | amp=0.13, atk=2.2, sus=0.66, dec=0.7, rel=5, fm_amt=0.7, mdec=10, ratio=2, v2=0.65, v3=0.42, hp=180, eq_f=500, eq_g=1.5, clip=0.6, bits=13, cmix=0.15, lpc=3800, note_def=220, gates=1\|1\|1\|1\|1\|1\|1\|1, n1=220\|220\|233.08\|233.08\|293.66\|293.66\|277.18\|277.18, n2=261.63\|261.63\|293.66\|293.66\|349.23\|349.23\|329.63\|329.63, n3=329.63\|329.63\|349.23\|349.23\|440\|440\|392\|392 |
-| vinyl | vinyl.txt | amp=0.22, hiss=0.65, pop=0.85, th=0.9999972, wow=0.9, wow_amt=0.1, wow_f=0.35, hp=1800, lpc=8000, eq_f=3200, eq_g=3 |

@@ -15,6 +15,8 @@ model and the Piper/Kitten voices live under ``tools/``.
 from __future__ import annotations
 
 import json
+import re
+import shutil
 import subprocess
 import urllib.request
 from pathlib import Path
@@ -50,6 +52,49 @@ def local_path(entry: dict[str, str]) -> Path:
     return SAMPLES / entry["set"] / entry["file"]
 
 
+def _is_youtube(url: str) -> bool:
+    """True for a YouTube watch/short URL (fetched with ``yt-dlp``)."""
+    return "youtube.com/" in url or "youtu.be/" in url
+
+
+def _youtube_start(url: str) -> int:
+    """The ``t=`` start offset in seconds (0 when absent)."""
+    match = re.search(r"[?&]t=(\d+)", url)
+    return int(match.group(1)) if match else 0
+
+
+def _fetch_youtube(url: str, dest: Path, seconds: int = 90) -> None:
+    """Download *seconds* of a YouTube video's audio from its ``t=`` start.
+
+    Used for sources that only exist on YouTube (the vinyl surface-noise rows).
+    Requires ``yt-dlp`` on PATH; the extracted audio is normalised by ``prepare``.
+    """
+    if not shutil.which("yt-dlp"):
+        raise SystemExit(
+            f"samples/manifest.md: '{url}' needs yt-dlp on PATH "
+            "(pip install yt-dlp, or download the audio manually)"
+        )
+    start = _youtube_start(url)
+    end = start + seconds
+    subprocess.run(
+        [
+            "yt-dlp",
+            "-f",
+            "bestaudio",
+            "--download-sections",
+            f"*{start}-{end}",
+            "--force-keyframes-at-cuts",
+            "-x",
+            "--audio-format",
+            "wav",
+            "-o",
+            str(dest),
+            url,
+        ],
+        check=True,
+    )
+
+
 def fetch(force: bool = False) -> list[Path]:
     """Download every manifest file that is missing (or all of them, if *force*)."""
     written: list[Path] = []
@@ -59,7 +104,10 @@ def fetch(force: bool = False) -> list[Path]:
             continue
         dest.parent.mkdir(parents=True, exist_ok=True)
         print(f"fetch   samples/{entry['set']}/{entry['file']}")
-        urllib.request.urlretrieve(entry["url"], dest)
+        if _is_youtube(entry["url"]):
+            _fetch_youtube(entry["url"], dest)
+        else:
+            urllib.request.urlretrieve(entry["url"], dest)
         written.append(dest)
     return written
 

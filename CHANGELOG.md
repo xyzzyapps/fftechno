@@ -1,6 +1,10 @@
 # Changelog
 
 ## Unreleased
+- **Cheat sheet.** `docs/ffmpeg_cheatsheet.png` (1080x1350) maps the techniques this
+  project uses - synthesis, sequencing, filters, sampler, mastering, video/checks -
+  with `docs/make_cheatsheet.py` as its generator (Pillow plus the system Times New
+  Roman / Consolas fonts; render-only). Linked from the README.
 - **Trip hop rework (`triphop_samples`) - a real break, four elements.** It is now a
   full 4:00 minimal track (84 BPM, 80 bars, D minor): the **Amen break**, a **sub**,
   a dusty **electric piano** and **vinyl**. The Amen is varispeeded 136 -> 84
@@ -11,7 +15,20 @@
   (`sub_async.txt`: fast attack, short pitch thump, decaying harmonics) on a 5-bar
   phrase that drifts against the harmony, and it plays only while the piano does.
   Master `techno_v14.wav` (-13.0 LUFS / -1.1 dBTP). A 1080x1080 cover and a
-  1920x1080 YouTube video were rendered from `image.jpg`.
+  1920x1080 YouTube video were rendered from `image.jpg`. The vinyl bed is now a
+  **real record-groove sample from YouTube** (`samples/vinyl/crackle.wav`, "Old Vinyl
+  Record Crackle On Loop for 1 Hour", 90 s from `t=120`, fetched with `yt-dlp`: the
+  manifest now supports YouTube rows, 90 s from the URL's `t=`) looped every 31 bars
+  **as-is** apart from a **-1.9 dB gain trim** (`gain=0.8`) - no EQ, no compression;
+  the only other change is the sampler's mono fold. It sits at RMS **-36.4 dB**. (Synthetic and CC0-sample attempts were
+  dropped; the Freesound bed was rejected and the first YouTube candidate, a "silent
+  groove", was too sparse - RMS -42 dB, 49 dB crest.) The intro is shortened by two
+  bars: the master is trimmed to `techno_v29.wav` (222.857 s; the cut matches at
+  5.714292 s, exactly 2 x 2.857142 s) and the video re-rendered from it. Earlier cuts
+  are kept as `ASYNCHRONOUS_1080p_v1/_v2/_v3/_v4/_v5/_v6/_v7/_v8/_v9.mp4`. The cover
+  carries a vertical **XYZZY** in **Times New Roman** with a multi-colour RGB-split
+  glitch (cyan/red/magenta/green/yellow ghosts plus a white core), centred; the video
+  was re-rendered from it.
 - **`stoner_samples` drums pass.** The sampler gained `rr` (round-robin: successive
   hits cycle through listed samples) and `jitter` (deterministic per-hit timing
   humanize). The stoner kit now uses round-robin snare/tom (3 Pearl samples each),

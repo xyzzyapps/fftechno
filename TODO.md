@@ -332,6 +332,36 @@ clobbered `songs/triphop/`; **restored from HEAD** and deleted the redundant
   `output/triphop_samples/ASYNCHRONOUS_1080p.mp4`: 1920x1080 H.264 High / AAC 320k
   48 kHz stereo, 228.57 s, `+faststart`, 1 s fade-in / 2 s fade-out, the cover
   centred on a blurred+darkened copy of itself. ~19 MB.
+- **Vinyl darker + quieter** (user: "vinyl noise too high ... low pass ... mellow like
+  brown noise"). New `templates/vinyl_brown.txt`: 1-pole low-pass at 500 Hz (a true
+  -6 dB/oct "brown" tilt), a 2.2 kHz 2-pole roll-off and a 180 Hz low shelf; amp
+  0.22 -> 0.26 but the low-pass removes the hiss, so the bed is darker and ~9.5 dB
+  quieter (RMS -32.4 -> **-42.9 dB**; >8 kHz -39 -> **-83.7 dB**). Master
+  `techno_v16.wav`.
+- **Video re-rendered**; the earlier cut is kept as `ASYNCHRONOUS_1080p_v1.mp4`, the
+  new one is `ASYNCHRONOUS_1080p.mp4` (from `techno_v16.wav`, 18.9 MB).
+- **Intro shortened by two bars** (user: "trim the first two bars of the video").
+  `techno_v17.wav` is `techno_v16.wav` cut at 5.714286 s (verified: the trimmed first
+  second matches the old master at sample 274286 / 5.714292 s, MSE 0.0) -> 222.857 s.
+  The video was re-rendered from it (18.3 MB); the untrimmed brown-vinyl cut is kept
+  as `ASYNCHRONOUS_1080p_v2.mp4`.
+- **Vinyl -> a real record groove from YouTube** (user: "download from youtube, this
+  is bad too"). `samples.py` now fetches **YouTube rows** with `yt-dlp`
+  (`--download-sections`, 90 s from the URL's `t=`); the manifest records the source
+  URL and notes it is not CC-licensed (noncommercial use). The sample is "Old Vinyl
+  Record Crackle On Loop for 1 Hour" at `t=120`; the vinyl stem is a sampler row
+  (`pat=0, pat_bars=31, trim=88.571429`) **as-is** - user: "use the vinyl sample as
+  is", so no `fx`; then a slight **-1.9 dB gain trim** (`gain=0.8`) -> RMS
+  **-36.4 dB**. (Only the sampler's mono fold otherwise.) Rejected on the way: the
+  modelled/brown beds, Freesound 464396, and the "real silent groove" video
+  (RMS -42, 49 dB crest - too sparse). Masters `techno_v28.wav` / trimmed
+  `techno_v29.wav`; video re-rendered (18.3 MB), previous kept as
+  `ASYNCHRONOUS_1080p_v8.mp4`.
+- **Cover art:** vertical **XYZZY** in **Times New Roman** (system `times.ttf`,
+  render-only) with a multi-colour glitch - cyan/red/magenta/green/yellow ghosts, a
+  white core, grain - centred on the cover. `cover_v1.jpg` keeps the clean art; the
+  video was re-rendered from the new cover (`ASYNCHRONOUS_1080p.mp4`, 13.0 MB), the
+  previous cut kept as `ASYNCHRONOUS_1080p_v9.mp4`.
 
 ### Optional next (samplers)
 

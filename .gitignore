@@ -12,6 +12,7 @@ output/**/stems/
 output/**/*.mp4
 output/**/*.jpg
 output/**/*.jpeg
+output/**/*.png
 output/**/girl_frames.npy
 output/**/girl_sprites.npy
 output/**/girl_pick.npy

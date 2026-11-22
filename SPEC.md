@@ -187,9 +187,8 @@ The shared techno set is seventeen instruments, all parameterised (values in
 the table. `triphop` adds `boom.txt`, `break_sp.txt`, `roll.txt`, `sub.txt`,
 `ep.txt`, `strings.txt`, `bell.txt`, `dubstab.txt`, `horn.txt`, `rise.txt` and
 `vinyl.txt`. `triphop_beat` uses `break_synth.txt`, `kick_trip.txt` and
-`bass_gate.txt`. `triphop_samples` uses `ep.txt`/`vinyl.txt` plus the sub variants
-`sub_min.txt` (level/tone) and `sub_async.txt` (a bar-long, punched, drifting
-melody). `sax.txt` and `rhodes.txt` are examples. They are not in the
+`bass_gate.txt`. `triphop_samples` uses `ep.txt` plus `sub_async.txt` (a bar-long, punched, drifting
+melody); its vinyl is a sampler row, not a template. `sax.txt` and `rhodes.txt` are examples. They are not in the
 shipped trip-hop song. `psych` adds `guitar_fuzz.txt`, `guitar_lead.txt`,
 `organ.txt`, `bass_rock.txt` and `tamb.txt`; its drums reuse `kick_trip.txt`,
 `snare.txt`, `tom.txt`, `hat_step.txt`, `ride.txt` and `crash.txt`, and its wash
@@ -554,6 +553,8 @@ samples/                     manifest.md (tracked) + downloaded sample sets
 visualizer.vpy               the video
 pyproject.toml LICENSE.md README.md SPEC.md TODO.md CHANGELOG.md
                              AEVAL_TUTORIAL.md (the aevalsrc/aeval guide)
+docs/ffmpeg_cheatsheet.png   the one-page technique card (linked from README)
+docs/make_cheatsheet.py      its generator (Pillow + system fonts, render-only)
 output/<name>/               techno*.wav, techno_visualizer*.mp4, girl_loop*.mp4,
                              girl_frames.npy / girl_sprites.npy + girl_pick.npy,
                              lyrics.json, stems/, logs/
@@ -599,8 +600,12 @@ self-correlation at the 5.7143 s loop point (0.957). It is high-passed at 200 Hz
 it sits in the midrange. Over it: `sub_async.txt` (a 20-note minor melody, every note
 **one bar long**, on a **5-bar** phrase that drifts against the 8-bar harmony, laid
 back 0.13 s, punchy and low in the mix; present **only while the piano plays**),
-`ep.txt` (dusty electric piano, one chord per bar) and `vinyl.txt` (dust). No second
-kit. Master `output/triphop_samples/techno_v14.wav`. See section 21.
+`ep.txt` (dusty electric piano, one chord per bar). The dust is a **real record-groove sample from YouTube**
+(`samples/vinyl/crackle.wav`, "Old Vinyl Record Crackle On Loop for 1 Hour", 90 s
+from `t=120`, fetched with `yt-dlp` - see the manifest note; not CC-licensed, source
+URL recorded, noncommercial use) looped every 31 bars through the sampler **as-is**
+apart from a **-1.9 dB gain trim** (`gain=0.8`) - no EQ or compression; the sampler
+folds it to mono. No second kit. Master `output/triphop_samples/techno_v14.wav`. See section 21.
 `psych` is 1960s psychedelic rock with a wall of sound: **110 BPM, 110 bars = 4:00**,
 E minor, instrumental. Two detuned fuzz guitars panned wide, a Farfisa-ish organ, a
 mellotron pad and tambourine over a rock kit, in a **5.5 s** convolution reverb

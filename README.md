@@ -78,8 +78,10 @@ ffplay output/triphop_samples/techno.wav
 four elements. The latest master is `output/triphop_samples/techno_v14.wav`.
 
 `samples/manifest.md` (committed) lists every file with its URL and licence; the
-downloaded wavs are not committed, so a clone reproduces them from the manifest. A
-song declares its samples in a `## Samplers` table in `sounds.md`:
+downloaded wavs are not committed, so a clone reproduces them from the manifest. Rows
+whose URL is a YouTube watch link are fetched with `yt-dlp` (90 s from the URL's `t=`
+offset); these are **not** CC-licensed - the source URL is recorded and they are used
+noncommercially. A song declares its samples in a `## Samplers` table in `sounds.md`:
 
 ```markdown
 | name | sample                        | params |
@@ -331,6 +333,16 @@ linted too. There is no test suite yet - the build itself is the check.
 `python -m fftechno audio --song S` rebuilds everything from `songs/S/` and
 `templates/`. The generated `filters/S/*.txt` and the ffmpeg-synthesised stems are
 reproducible; the neural-TTS voice is deterministic for a given model.
+
+## Cheat sheet
+
+A one-page map of the ffmpeg techniques this project uses - synthesis, sequencing,
+filters, the sampler, mastering, video and checks:
+
+![ffmpeg as a DAW - cheat sheet](docs/ffmpeg_cheatsheet.png)
+
+Generated with `python docs/make_cheatsheet.py` (Pillow plus the system Times New
+Roman / Consolas fonts; render-only).
 
 ## Further reading
 
