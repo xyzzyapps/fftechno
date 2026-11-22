@@ -182,13 +182,31 @@ A grid is just:
 grid = floor(mod(t, period) / cell)
 ```
 
+Read it in three steps:
+
+```text
+mod(t, period)     where are we inside the repeating period?
+/ cell             how many cells have passed?
+floor(...)         which whole cell are we in?
+```
+
 At 84 BPM, one bar is `2.857143 s` and one 16th step is `0.178571 s`:
 
 ```text
 grid = floor(mod(t, 2.857143) / 0.178571)
 ```
 
-That produces `0..15` once per bar.
+| `t` | `mod(t, 2.857143)` | divided by `0.178571` | `floor` |
+|---:|---:|---:|---:|
+| 0.000 | 0.000 | 0.000 | 0 |
+| 0.100 | 0.100 | 0.560 | 0 |
+| 0.179 | 0.179 | 1.000 | 1 |
+| 1.000 | 1.000 | 5.600 | 5 |
+| 2.857 | 0.000 | 0.000 | 0 |
+
+That produces `0..15` once per bar. `mod` resets at the bar line; `floor` turns the fractional step count into an integer index. Without `floor`, a comparison such as `eq(grid,5)` would only be true for an instant at the exact boundary.
+
+Using `floor(t / step)` without `mod` counts absolute steps from the song start and does not reset. Some templates use that for slow, non-repeating variation (for example, a per-hit decay that keeps changing instead of repeating every bar).
 
 ### Sine + saw + sample with effects
 
