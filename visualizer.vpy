@@ -1,4 +1,4 @@
-"""visualizer.vpy - VapourSynth + GLSL dancing-girl visualizer.
+"""visualizer.vpy - VapourSynth + GLSL beat-locked visualizer.
 
 The picture comes from ``fftechno girl`` as one of four looks (``--look``):
 
@@ -237,6 +237,7 @@ def render_ascii(grid):
 # Audio analysis
 # ---------------------------------------------------------------------------
 def analyse(path):
+    """Analyse the mastered wav into per-frame spectrum, bass, kick and energy arrays."""
     with wave.open(path, "rb") as wf:
         sr, nch, nframes = wf.getframerate(), wf.getnchannels(), wf.getnframes()
         raw = wf.readframes(nframes)
@@ -272,6 +273,7 @@ def analyse(path):
         energy[i] = np.sqrt(np.mean(seg ** 2)) + 1e-9
 
     def norm(db, lo_pc, hi_pc):
+        """Normalise a dB array to 0..1 over the given percentile range."""
         lo, hi = np.percentile(db, lo_pc), np.percentile(db, hi_pc)
         return np.clip((db - lo) / (hi - lo + 1e-6), 0.0, 1.0)
 
@@ -338,15 +340,6 @@ if _fallback_needed:
         _picks = np.array(_playlist[:N_IMG_BLOCKS], dtype=int)
     else:
         _picks = np.zeros(N_IMG_BLOCKS, dtype=int)
-    _render_cache = {}
-
-    def ascii_for_block(blk):
-        if blk not in _render_cache:
-            if len(_render_cache) > 8:
-                _render_cache.clear()
-            _render_cache[blk] = (render_ascii(_grids[int(_picks[blk])])
-                                  if _grids else np.zeros((H, W), np.uint8))
-        return _render_cache[blk]
 
 _FILL = NF // 2                     # representative frame used when STATIC
 _blank = np.zeros((GH, GW), np.uint8)
@@ -366,6 +359,7 @@ def _neutral_chroma(fc):
 
 
 def build_data(n, f):
+    """Build one YUV444P16 data frame: picture, paint effects, lyrics, audio strip."""
     fc = f.copy()
     luma = plane_u16(fc, 0)
     i = _FILL if STATIC else min(n, NF - 1)

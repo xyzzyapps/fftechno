@@ -6,7 +6,7 @@ import argparse
 import re
 from pathlib import Path
 
-from . import audio, video
+from . import audio, config, video
 from . import song as songs
 
 
@@ -36,6 +36,7 @@ def _girl():
 
 
 def _add_song(parser: argparse.ArgumentParser) -> None:
+    """Add the shared ``--song`` option to *parser*."""
     parser.add_argument(
         "--song",
         default=songs.names()[0] if songs.names() else "basement",
@@ -44,6 +45,7 @@ def _add_song(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_look(parser: argparse.ArgumentParser) -> None:
+    """Add ``--look`` and ``--mode`` (picture source and Pollock mode)."""
     parser.add_argument(
         "--look",
         choices=("edge", "pollock", "outline", "photo"),
@@ -59,6 +61,7 @@ def _add_look(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_fx(parser: argparse.ArgumentParser) -> None:
+    """Add ``--fx`` (a comma-separated effect-chain override)."""
     parser.add_argument(
         "--fx",
         default=None,
@@ -68,16 +71,23 @@ def _add_fx(parser: argparse.ArgumentParser) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Parse the command line and run the selected build command."""
     parser = argparse.ArgumentParser(
         prog="fftechno",
-        description="Build a techno track (ffmpeg) and a dancing-girl video.",
+        description="Build a song from Markdown with ffmpeg (audio and optional video).",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     aud = sub.add_parser(
-        "audio", help="stems -> mix -> master (output/<song>/techno.wav)"
+        "audio", help="stems -> mix -> master (default: output/<song>/techno.wav)"
     )
     _add_song(aud)
+    aud.add_argument(
+        "--out",
+        type=Path,
+        default=None,
+        help="output root (default: output/); e.g. --out out2",
+    )
     aud.add_argument(
         "--safe",
         action="store_true",
@@ -90,7 +100,7 @@ def main(argv: list[str] | None = None) -> None:
         help="vocal TTS engine (default: the song's vocals.md)",
     )
 
-    girl = sub.add_parser("girl", help="build the dancing-girl loop")
+    girl = sub.add_parser("girl", help="build the picture loop")
     _add_song(girl)
     _add_look(girl)
 
@@ -162,6 +172,9 @@ def main(argv: list[str] | None = None) -> None:
 
         samples_mod.run(force=args.force)
         return
+
+    if getattr(args, "out", None):
+        config.OUTPUT = args.out.resolve()
 
     from .proc import build_lock
 

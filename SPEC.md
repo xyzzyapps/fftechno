@@ -1,17 +1,17 @@
 # SPEC.md - fftechno (SRS)
 
 Technical specification of **fftechno**: underground tracks synthesized by
-**ffmpeg**, plus a music video when the song has one. The songs are folders
-under `songs/`: `basement` (155 BPM, 155 bars, 4:00), `hardgroove` (140 BPM,
-140 bars, 4:00), `minimal` (100 BPM, 75 bars, 3:00), `triphop` (84 BPM, 84 bars,
-4:00, audio only), `triphop_beat` (88 BPM, 8 bars, a scratch), `triphop_samples`
-(84 BPM, 80 bars, 4:00, sample-based: Amen break + sub + electric piano + vinyl),
-`psych` (110 BPM, 110 bars, 4:00, 1960s
-psychedelic rock with a wall of sound) and `stoner` (76 BPM, 76 bars, 4:00,
-stoner rock) and `stoner_samples` (80 BPM, 80 bars, 4:00, the sample-based stoner
-rock). A voice, when
-the song has a `vox` stem, comes from a local neural TTS. The build tooling is
-Python. The arrangement and every instrument parameter live in markdown.
+**ffmpeg**, plus a music video when the song has one. A song is a folder under
+`songs/`: `basement` (155 BPM, 155 bars, 4:00), `hardgroove` (140 BPM, 140 bars,
+4:00), `minimal` (100 BPM, 75 bars, 3:00), `triphop` (84 BPM, 84 bars, 4:00, audio
+only), `triphop_beat` (88 BPM, 8 bars, a scratch), `triphop_samples` (84 BPM, 80
+bars, 3:48.6; sample-based: Amen break + sub + electric piano + vinyl; the delivered
+cut is 3:42.9), `psych` (110 BPM, 110 bars, 4:00, 1960s psychedelic rock with a wall
+of sound), `stoner` (76 BPM, 76 bars, 4:00, stoner rock) and `stoner_samples` (80 BPM,
+80 bars, 4:00, sampled stoner rock). A voice, when the song has a `vox` stem, comes
+from a local neural TTS. The build tooling is Python. The arrangement and every
+instrument parameter live in markdown. The repository also ships the one-page
+technique card `docs/ffmpeg_cheatsheet.png` and its generator.
 
 ---
 
@@ -44,10 +44,14 @@ Out of scope: real-time performance, a GUI, MIDI import.
 - **Gate** - a per-step on/off (0/1) value; drum `gates` lists are 16 values.
 - **LUFS / true peak** - loudness / peak measures used for mastering.
 
-## 3. Global constants
+## 3. Song constants
 
-| Name | Value |
-|------|-------|
+There are no build-wide musical constants: `bpm` and `bars` come from each song's
+`song.md`. The table below is the default song, `basement`, and shows the shape of the
+derived clock. Every other song substitutes its own values.
+
+| Name | Value (basement) |
+|------|------------------|
 | BPM | 155 |
 | bars | 155 (4:00) |
 | sample rate | 48000 Hz (oscillators generated at 192000 Hz, then downsampled) |
@@ -55,7 +59,9 @@ Out of scope: real-time performance, a GUI, MIDI import.
 | stems | kick, snare, snarefill, clap, hat, ohat, ride, crash, breakbeat, conga, shaker, reese, acid, lead_pwm, lead_fm, pad, stab, vox |
 
 Derived: `beat = 60/155 = 0.387097 s`, `step (16th) = 0.096774 s`,
-`bar = 1.548387 s`.
+`bar = 1.548387 s`. In general the song length is `bars * 240/bpm`; for example
+`triphop_samples` is `80 * 240/84 = 228.571 s`, and `triphop_beat` is
+`8 * 240/88 = 21.818 s`.
 
 ## 4. Architecture and data flow
 
@@ -83,22 +89,33 @@ Derived: `beat = 60/155 = 0.387097 s`, `step (16th) = 0.096774 s`,
               vspipe visualizer.vpy (paint + shader) -> ffmpeg -> techno_visualizer.mp4
 ```
 
+Sample-based songs replace the template branch with
+`samples/manifest.md -> python -m fftechno samples -> samples/<set>/*.wav ->
+sampler.graph`. The optional `audio --out DIR` flag changes the output root from
+`output/` to `DIR` (for a clean audit build, e.g. `--out out2`); `filters/` stays
+shared and is regenerated in place.
+
 ## 5. Build pipeline
 
 Commands (`python -m fftechno ...`):
 
-Commander: every command takes `--song <name>` (default `basement`).
+Commander: every command except `samples` takes `--song <name>` (default
+`basement`).
 
 | Command | Phases |
 |---------|--------|
 | `synth --song S` | `songs/S/sounds.md` + `templates/` -> `filters/S/<name>.txt` (oscillator templates and sampler graphs) |
 | `samples [--force]` | `samples/manifest.md` -> download + normalise the files under `samples/` (no `--song`) |
-| `audio --song S [--safe] [--tts kitten\|piper]` | `synth` -> IR -> vocals -> stems -> mix -> master -> `output/S/techno.wav` |
+| `audio --song S [--out DIR] [--safe] [--tts kitten\|piper\|flite]` | `synth` -> IR -> vocals -> stems -> mix -> master -> `<out>/S/techno.wav` |
 | `girl --song S [--look edge\|pollock\|outline\|photo] [--mode reset\|trail\|build]` | picture source -> look -> `output/S/girl_loop.mp4` + picture data |
 | `video --song S [--look ..] [--fx a,b] [--mode ..] [--boost F] [--static]` | envelopes -> render -> mux -> 720p preview -> optional re-level |
 | `all --song S [--look ..] [--fx a,b] [--mode ..] [--safe] [--tts ..] [--boost F] [--static]` | `audio`, then `girl`, then `video` |
 | `boost F --song S` | re-encode the MP4 audio at gain `F` (video copied) |
 | `swap --song S` | replace the MP4 audio with the current master (video **copied** - the way to apply an audio-only change) |
+
+`--out DIR` applies to `audio` only; it resolves `DIR` and redirects
+`song.output`/stems/logs/the master there. It is useful for a clean verification
+run without adding a `_vN` to the normal `output/` tree.
 
 Filtergraphs are read from files with the ffmpeg 9 syntax `-/filter_complex FILE`
 (the old `-filter_complex_script` was removed).
@@ -106,8 +123,8 @@ Filtergraphs are read from files with the ffmpeg 9 syntax `-/filter_complex FILE
 Outputs are written with `config.unique_path`: if the target exists, the build
 writes `name_v2.ext`, `_v3`, ... so existing renders are never overwritten.
 
-A **build lock** (`output/<song>/logs/.build.lock`, created with `O_EXCL`) prevents two
-builds writing the same outputs concurrently; a second run exits with a clear
+A **build lock** (`<out>/<song>/logs/.build.lock`, created with `O_EXCL`) prevents
+two builds writing the same outputs concurrently; a second run exits with a clear
 message.
 
 ## 6. Control surface A - `songs/<name>/song.md`
@@ -183,8 +200,8 @@ Samplers table, or both; see section 21.
 ## 8. Instruments
 
 The shared techno set is seventeen instruments, all parameterised (values in
-`sounds.md`). Template *variants* that add per-instrument effects are listed after
-the table. `triphop` adds `boom.txt`, `break_sp.txt`, `roll.txt`, `sub.txt`,
+`sounds.md`). The table below also lists `blow`, which `minimal` uses. Template
+*variants* that add per-instrument effects are listed after the table. `triphop` adds `boom.txt`, `break_sp.txt`, `roll.txt`, `sub.txt`,
 `ep.txt`, `strings.txt`, `bell.txt`, `dubstab.txt`, `horn.txt`, `rise.txt` and
 `vinyl.txt`. `triphop_beat` uses `break_synth.txt`, `kick_trip.txt` and
 `bass_gate.txt`. `triphop_samples` uses `ep.txt` plus `sub_async.txt` (a bar-long, punched, drifting
@@ -313,10 +330,12 @@ before.
 
 ## 11. Output format
 
-`output/<song>/techno.wav`: pcm_s16le, 48 kHz, 2 channels. The length is `bars`
+`<out>/<song>/techno.wav`: pcm_s16le, 48 kHz, 2 channels. The length is `bars`
 times one bar (`240/bpm` seconds): 240 s for `basement`, `hardgroove`, `triphop`,
-`psych`, `stoner` and `stoner_samples`, 180 s for `minimal`, about 21.8 s for
-`triphop_beat` and `triphop_samples`. The master targets -13 LUFS and -1 dBTP.
+`psych`, `stoner` and `stoner_samples`; 180 s for `minimal`; 228.571 s for
+`triphop_samples` (80 bars at 84 BPM); and 21.818 s for `triphop_beat`. The
+delivered `triphop_samples` cut trims the first two bars (5.714286 s), so its
+master and YouTube video are 222.857 s. The master targets -13 LUFS and -1 dBTP.
 
 ## 12. Video - `visualizer.vpy`
 
@@ -335,9 +354,10 @@ Environment inputs: `FFTECHNO_AUDIO` (the mastered WAV), `FFTECHNO_W` / `FFTECHN
 `FFTECHNO_GIRL_FRAMES` (grey frame stack - edge/pollock), `FFTECHNO_GIRL_SPRITES` +
 `FFTECHNO_GIRL_PICK` (RGB sprites + per-frame index - outline/photo),
 `FFTECHNO_POLLOCK` (paint-accumulation mode), `FFTECHNO_FX` (the effect-chain JSON),
-`FFTECHNO_ENV_DIR` (the per-instrument envelopes), `FFTECHNO_ROOT` (so the script can
-import `fftechno.effects`) and `FFTECHNO_STATIC`. With no picture data at all it
-falls back to ASCII art of any `ascii/*.jpg|png`.
+`FFTECHNO_ENV_DIR` (the per-instrument envelopes), `FFTECHNO_LYRICS` (the lyric JSON,
+when present), `FFTECHNO_ROOT` (so the script can import `fftechno.effects`) and
+`FFTECHNO_STATIC`. With no picture data at all it falls back to ASCII art of any
+`ascii/*.jpg|png`.
 
 The output size drives everything downstream: the picture-data frame is half the
 output (`GW, GH = W/2, H/2`), the audio data strip sits in its top 4 rows, the 720p
@@ -346,8 +366,9 @@ coordinates are built for that height (`assemble_shader(..., height)`).
 
 ### 12.1 Girl pipeline - `fftechno/girl.py` (+ `fftechno/matte.py`)
 
-1. `source_clip()`: the first video in `ascii/`.
-2. Decode `GIRL_CROP_START .. +GIRL_CROP_DURATION` (2.0 s..5.0 s) at native size/fps.
+1. `source_clip()`: the configured `video.source`, or the first video in `ascii/`.
+2. Decode `video.crop_start .. + video.crop_duration` (default 2.0 s..5.0 s) at
+   native size/fps. A still image has no timeline, so it is decoded once.
 3. Per look:
    - **edge**: `RVMMatte` -> alpha; `largest_component` keeps the subject (drops
      the crowd); composite over black; `edgedetect` (white lines on black).
@@ -453,6 +474,38 @@ subject within the frame, in *output* pixels (positive = right/down), by moving 
 window the other way. `crop_bottom` / `crop_right` trim a fraction off the bottom or the
 right first (e.g. a watermark - the current still's sits at x 0.88-0.925 / y 0.843-0.857).
 
+### 12.6 Cover video (the YouTube cut)
+
+`triphop_samples` has no `video.md`. Its YouTube cut is a separate still-art ffmpeg
+pass, not a `python -m fftechno video` render:
+
+1. The square cover art is scaled to 1080x1080 (Lanczos) and centred.
+2. A copy of the cover is scaled/cropped to 1920x1080, blurred (`gblur=sigma=45`)
+   and darkened/desaturated (`eq=brightness=-0.22:saturation=0.85`) for the
+   background.
+3. The cover is overlaid at the centre.
+4. A 1 s fade-in and a 2 s fade-out (`st=220.857`) are applied, then H.264 High
+   (`-crf 18`, `yuv420p`, 30 fps) and AAC 320 kbps 48 kHz stereo are muxed with
+   `+faststart`.
+
+Delivered file: `output/triphop_samples/ASYNCHRONOUS_1080p.mp4`, 222.857 s,
+1920x1080, 30 fps, 12,984,773 bytes. The cover carries vertical **XYZZY** in
+Times New Roman with a multi-colour RGB-split glitch (cyan/red/magenta/green/yellow
+ghosts, a white core and grain), centred. `cover_v1.jpg` is the clean art;
+`cover.jpg` is the glitched version used by the video.
+
+### 12.7 Cheat sheet
+
+`docs/ffmpeg_cheatsheet.png` is a 1080x1350 social card listing the synthesis,
+sequencing, filter, sampler, mastering, video and check techniques this project
+uses. `docs/make_cheatsheet.py` draws it with Pillow and the Windows system fonts
+(Times New Roman for the title, Consolas for the code). Both the generator and the
+PNG are tracked; the image is linked at the top of the README. Regenerate with:
+
+```powershell
+.venv\Scripts\python docs\make_cheatsheet.py
+```
+
 ## 13. Verification and acceptance
 
 | Check | Method | Result |
@@ -464,6 +517,12 @@ right first (e.g. a watermark - the current still's sits at x 0.88-0.925 / y 0.8
 | Safe mode | `ebur128` with `--safe` | true peak about -6 dBFS |
 | Video | `ffprobe` + spot frames | 1920x1080, 30 fps, lyrics on time |
 | Determinism | rebuild the ffmpeg stems | identical |
+| Amen loop seam | self-correlation at 2 bars | 0.957 at 5.7143 s |
+| Delivered trip-hop master | `ebur128` / `ffprobe` | 222.857 s, -13.0 LUFS, -1.2 dBTP |
+| Cover video | `ffprobe` | 1920x1080, 30 fps, AAC 320k, 12,984,773 bytes |
+| Cheat sheet | Pillow render | 1080x1350 PNG |
+| Code audit | AST docstring scan + vulture | 186 functions, 0 missing; no dead code at 60% confidence |
+| Lint / format | pyflakes, ruff, black | clean |
 
 ## 14. Reproducibility
 
@@ -482,7 +541,7 @@ guarantees a single writer.
   `pad`. Filtergraphs are read from files with `-/filter_complex FILE`
   (`-filter_complex_script` was removed in ffmpeg 8/9).
 - Python 3.10+ (most tooling is the standard library; the video needs the venv
-  above and the voice needs `kittenml` or Piper).
+  below and the voice needs a TTS engine).
 - Video: venv with `vapoursynth`, `numpy`, `vs-placebo` (`vspipe`) and a Vulkan GPU.
   Run `.venv\Scripts\python -m vapoursynth config` once (the `Scripts\vapoursynth`
   launcher needs a configured shell).
@@ -492,23 +551,48 @@ guarantees a single writer.
   .venv\Scripts\pip install onnxruntime
   curl -L -o tools\rvm\rvm_mobilenetv3_fp32.onnx https://github.com/PeterL1n/RobustVideoMatting/releases/download/v1.0.0/rvm_mobilenetv3_fp32.onnx
   ```
-- Vocals: a local neural TTS (offline):
+- Vocals: a local TTS (offline), chosen with `--tts` or `engine:` in `vocals.md`:
   - **Kitten TTS** (default): `pip install kittenml soundfile huggingface_hub
     phonemizer espeakng_loader` (no torch needed; the nano ONNX model is fetched
     to `tools/kitten/`).
   - **Piper**: unzip the Windows build into `tools/piper/` and put a voice
     (`<name>.onnx` + `.onnx.json`) in `tools/piper/voices/`.
+  - **flite**: ffmpeg's own built-in TTS, when the ffmpeg build includes libflite.
+    No model files or network; voices `slt`, `kal`, `kal16`, `rms`, `awb`.
+- Samples: network access for the first fetch; `yt-dlp` on `PATH` for manifest rows
+  whose URL is a YouTube watch/short link (the vinyl row).
+- Docs: Pillow plus the system Times New Roman / Consolas fonts, only to regenerate
+  `docs/ffmpeg_cheatsheet.png`.
+- Dev: `black`, `pyflakes`, `ruff`; `vulture` was used for the one-off dead-code
+  audit and is not a runtime dependency.
 
 ## 16. Troubleshooting / FAQ
 
 - **Silence or a thin mix?** A stem WAV may be truncated (two builds overlapping).
   Re-run `python -m fftechno audio`; the build lock prevents overlap.
 - **"another fftechno build is running"?** A lock file exists; wait, or delete
-  `output/<song>/logs/.build.lock` if stale.
+  `<out>/<song>/logs/.build.lock` if stale.
 - **A template error?** `synth` names the missing value.
-- **Where are logs?** `output/<song>/logs/` (`vspipe.log`, `ffmpeg_video.log`,
-  `mix.txt`).
-- **Noncommercial?** Yes - PolyForm Noncommercial 1.0.0 (`LICENSE.md`).
+- **Where are logs?** `<out>/<song>/logs/` (`vspipe.log`, `ffmpeg_video.log`,
+  `mix.txt`, plus `vox_*.wav` when a voice is rendered).
+- **Which render is current?** The newest `techno*.wav` or
+  `techno_visualizer*.mp4`; `swap` and `boost` use an anchored `_latest()` match, so
+  a preview file cannot be mistaken for the master.
+- **Why is the delivered trip-hop 3:42.9 and the song 3:48.6?** The song is 80 bars
+  at 84 BPM (228.571 s); the YouTube cut removes the first two bars (5.714286 s).
+- **Where is the cover video?** `output/triphop_samples/ASYNCHRONOUS_1080p.mp4`. It
+  is the separate still-art ffmpeg pass in 12.6, not a `video` command render.
+- **Why does a build take so long?** Every stem is synthesised at its `sounds.md`
+  `sr` (often 192 kHz) for the whole song, with no stem cache; then the mix and the
+  two-pass loudnorm read the full length again. Build songs in parallel or use a
+  lower `sr` only for a scratch check.
+- **How do I make a clean verification build?** `python -m fftechno audio --song S
+  --out out2` writes `out2/S/` and leaves `output/` untouched.
+- **A YouTube sample fails?** Install `yt-dlp` and check that the URL still has its
+  `t=` offset; the fetch is 90 s from that point.
+- **Noncommercial?** Yes - PolyForm Noncommercial 1.0.0 (`LICENSE.md`). The
+  YouTube-sourced vinyl row is not CC-licensed; its URL is in the manifest and it is
+  used noncommercially.
 
 ## 17. Extension guide
 
@@ -544,13 +628,13 @@ songs/<name>/                control surfaces: song.md, sounds.md (+ optional
 templates/*.txt              synth schematics: the techno set, its variants
                              (kick_verb, hat_rand), the trip-hop set, and examples
                              (sax, rhodes, beeps, growl, rim, tom)
-filters/<name>/*.txt         generated graphs + vox.txt
+filters/<name>/*.txt         generated graphs + vox.txt (shared output, even with --out)
 fftechno/                    config, md, song, looks, effects, proc (build lock),
                              audio, synth, sampler, samples, arrangement, vox, girl,
                              matte, video, cli
-samples/                     manifest.md (tracked) + downloaded sample sets
-                             (gitignored): triphop_kit/, breaks/
-visualizer.vpy               the video
+samples/                     manifest.md (tracked) + downloaded sets (gitignored):
+                             triphop_kit/, breaks/, vinyl/, stoner_kit/
+visualizer.vpy               the VapourSynth + GLSL video
 pyproject.toml LICENSE.md README.md SPEC.md TODO.md CHANGELOG.md
                              AEVAL_TUTORIAL.md (the aevalsrc/aeval guide)
 docs/ffmpeg_cheatsheet.png   the one-page technique card (linked from README)
@@ -558,6 +642,10 @@ docs/make_cheatsheet.py      its generator (Pillow + system fonts, render-only)
 output/<name>/               techno*.wav, techno_visualizer*.mp4, girl_loop*.mp4,
                              girl_frames.npy / girl_sprites.npy + girl_pick.npy,
                              lyrics.json, stems/, logs/
+output/triphop_samples/      the cover art (cover*.jpg), the delivered
+                             ASYNCHRONOUS_1080p*.mp4 and techno_v28/v29.wav
+out2/<name>/                 optional clean audio-only audit root (`--out out2`);
+                             gitignored, same stems/logs/techno.wav layout
 tools/ ascii/                RVM + voice models + the source clip
 ```
 
@@ -568,13 +656,23 @@ tools/ ascii/                RVM + voice models + the source clip
 - `random()` noise is deterministic for a fixed ffmpeg build, but a different build
   may change the noise timbre.
 - VapourSynth scripts are Python by definition; the video layer needs the venv.
+- The sampler folds every sample to mono. A stereo source (the vinyl loop, the Amen
+  break) is summed before placement, so no stereo width survives a sampler stem.
+- The YouTube vinyl row is **not** CC-licensed. It is used noncommercially and the
+  source URL is recorded; redistributing the sample set separately would need the
+  uploader's permission.
+- Builds never overwrite, so repeated 4-minute renders accumulate large
+  `techno_vN.wav` files and full-length stems. A clean `--out` root or pruning old
+  versions is the intended housekeeping.
+- Synthesis cost scales with `sr`: a 4-minute stem at 192 kHz is ~46 million samples.
+  There is no stem cache, so a full rebuild re-renders every instrument.
 
 ## 20. Songs and looks
 
 The code is song-agnostic; song data lives in folders and the style-specific video
 code lives in one place.
 
-**Tracks.** `basement` (155 BPM jungle techno, 155 bars, 16 instruments + vox,
+**Tracks.** `basement` (155 BPM jungle techno, 155 bars, 17 instruments + vox,
 `outline` video). `hardgroove` (140 BPM, 140 bars, 12 instruments + vox in Levels,
 `edge` video). `minimal` (100 BPM, 75 bars = 3:00, Robert-Hood-style: a dry,
 never-dropping 4-on-4 kick, closed + dynamic open hats, snare, rim and a one-note
@@ -591,21 +689,25 @@ chain. `triphop` (84 BPM, 84 bars = 4:00, instrumental, audio only) uses kick,
 brk, roll, sub, ep, strings, bell, stab, horn, rise and vinyl. The side-chain key
 is kick and the low bus is sub. The master on disk is `output/triphop/techno_v4.wav`.
 `triphop_beat` is an 88 BPM, 8-bar scratch (kick, break, bass), not the 4-minute song.
-`triphop_samples` is the **sample-based** counterpart: **84 BPM, 80 bars = 4:00**,
-D minor, four elements. The **Amen break** (`samples/breaks/amen.wav`) is the only
-drum source: varispeeded **136 -> 84** (`rate=0.56176`) and trimmed to a two-bar loop.
-The file's real tempo is ~149.5 BPM (its pattern repeats every 1.605 s), not the
-"136" in its name, so the window now lands on the phrase - verified by
-self-correlation at the 5.7143 s loop point (0.957). It is high-passed at 200 Hz so
-it sits in the midrange. Over it: `sub_async.txt` (a 20-note minor melody, every note
-**one bar long**, on a **5-bar** phrase that drifts against the 8-bar harmony, laid
-back 0.13 s, punchy and low in the mix; present **only while the piano plays**),
-`ep.txt` (dusty electric piano, one chord per bar). The dust is a **real record-groove sample from YouTube**
+`triphop_samples` is the **sample-based** counterpart: **84 BPM, 80 bars =
+228.571 s (3:48.57)**, D minor, four elements. The **Amen break**
+(`samples/breaks/amen.wav`) is the only drum source: varispeeded to the 84 BPM grid
+with `rate=0.56176` and trimmed to a two-bar loop (5.714286 s). The file's pattern is
+really ~149.5 BPM (it repeats every 1.605 s), not the "136" in its name, so the window
+now lands on the phrase - verified by self-correlation at the loop point (0.957). It
+is high-passed at 200 Hz and low-passed at 8 kHz with a tanh clip so it sits in the
+midrange. Over it: `sub_async.txt` (five notes, each **one bar long**, on a **5-bar**
+phrase that drifts against the 8-bar harmony, laid back 0.13 s, punchy and low in the
+mix; present **only while the piano plays**), and `ep.txt` (dusty FM electric piano,
+one chord per bar). The dust is a **real record-groove sample from YouTube**
 (`samples/vinyl/crackle.wav`, "Old Vinyl Record Crackle On Loop for 1 Hour", 90 s
 from `t=120`, fetched with `yt-dlp` - see the manifest note; not CC-licensed, source
 URL recorded, noncommercial use) looped every 31 bars through the sampler **as-is**
 apart from a **-1.9 dB gain trim** (`gain=0.8`) - no EQ or compression; the sampler
-folds it to mono. No second kit. Master `output/triphop_samples/techno_v14.wav`. See section 21.
+folds it to mono. One bar (39-40) is a full stop. No second kit. The full render is
+`techno_v28.wav` (228.571 s); the delivered cut trims the first two bars to
+`techno_v29.wav` (222.857 s, -13.0 LUFS / -1.2 dBTP), and
+`ASYNCHRONOUS_1080p.mp4` is 222.857 s. See sections 12.6 and 21.
 `psych` is 1960s psychedelic rock with a wall of sound: **110 BPM, 110 bars = 4:00**,
 E minor, instrumental. Two detuned fuzz guitars panned wide, a Farfisa-ish organ, a
 mellotron pad and tambourine over a rock kit, in a **5.5 s** convolution reverb
@@ -641,11 +743,11 @@ instrumental with no video).
 
 **Looks** (`fftechno/looks.py`). `girl.py` is a generic pipeline (decode ->
 optional matte -> look -> fit -> emit); a `Look` strategy declares `needs_matte`,
-`emits` (`stack` grey frames or `sprites` RGB), an optional `accumulation` hint and
-`decode` (`native`/`fitted`), plus `stack_filter(w,h)` (a `-filter_complex` body)
-and/or `sprites(frames, model)`. Four are registered: `edge`, `pollock`,
-`outline`, `photo`. Adding a look = one subclass (and, if it needs knobs, a
-`| name | key | value |` row in a song's `video.md`).
+`emits` (`stack` grey frames or `sprites` RGB), an optional `accumulation` hint, and
+the `configure` / `decode_filter` / `stack_filter` / `loop_filter` / `sprites` hooks.
+Four are registered: `edge`, `pollock`, `outline`, `photo`. Adding a look = one
+subclass (and, if it needs knobs, a `| name | key | value |` row in a song's
+`video.md`).
 
 `templates/`, `filters/<song>/`, `visualizer.vpy` and the models in `tools/` are
 shared across every song.
@@ -673,21 +775,23 @@ A `sample` cell is one path or a `|`-separated map of `path@root` zones
 the nearest root in semitones, so a wide riff shifts each sample less.
 
 The generated graph reads the file with the `amovie` source filter (a `filter_complex`
-source, so no `-i` is needed). A `pat` instrument builds **one bar** (one branch per
-hit, placed with `adelay`) and loops it sample-accurately with `asetpts` ->
-`atrim=0:bar` -> `apad=whole_len` -> `aloop=loop=-1:size=<bar frames>` ->
-`atrim=0:<song.duration>`; the stem is exactly `song.duration` and the graph stays
-tiny (a 4-minute pattern is a handful of filters, not one chain per hit). A `hits`
-instrument (sparse, absolute) places each hit once and sums with a silent bed of the
-full song length. Because `render_stems` passes **repo-relative** `samples/...` paths
-to `amovie`, it runs ffmpeg with the repo root as its working directory
-(`proc.run(cwd=...)`); otherwise the path would not resolve.
+source, so no `-i` is needed). A `pat` instrument builds the pattern (`pat_bars`
+bars, default one; one branch per hit, placed with `adelay`) and loops it
+sample-accurately with `asetpts` -> `atrim=0:bar` -> `apad=whole_len` ->
+`aloop=loop=-1:size=<bar frames>` -> `atrim=0:<song.duration>`; the stem is exactly
+`song.duration` and the graph stays tiny (a 4-minute pattern is a handful of filters,
+not one chain per hit). A `hits` instrument (sparse, absolute) places each hit once
+and sums with a silent bed of the full song length. Because `render_stems` passes
+**repo-relative** `samples/...` paths to `amovie`, it runs ffmpeg with the repo root
+as its working directory (`proc.run(cwd=...)`); otherwise the path would not resolve.
+Every sample is resampled to mono (`channel_layouts=mono`), so no sampler stem keeps
+stereo width.
 
 Parameters (comma separated `key=value`):
 
 | key | meaning |
 |-----|---------|
-| `pat` | 16th steps inside the pattern, looped (spans `pat_bars` bars, default 1) |
+| `pat` | 16th-step indices inside the pattern (e.g. `0\|6\|10`), looped; spans `pat_bars` bars (default 1) |
 | `pat_bars` | number of bars the `pat` pattern spans (default 1) |
 | `hits` | absolute 16th steps from the song start (sparse sounds, e.g. a crash every 8 bars) |
 | `vel` | per-hit velocity, parallel to `pat`/`hits` |
@@ -702,26 +806,62 @@ Parameters (comma separated `key=value`):
 | `fx` | extra per-hit filters, `;`-separated (`;` becomes `,`), e.g. `highpass=f=60;lowpass=f=6000;asoftclip=type=tanh:threshold=0.8` |
 | `gain` | per-instrument gain |
 
-Use `pat` **or** `hits`, not both. Every hit is placed by an **absolute** `adelay`
-(milliseconds), so there is no cumulative drift. `pat` is looped with `aloop` after
-`asetpts` and an exact `whole_len`; the loop boundaries are sample-accurate (measured).
-A looped pattern's `trim` must be shorter than one bar, because the bar buffer is
-trimmed at the bar line.
+Use `pat` **or** `hits`, not both. `pat` is a list of **step indices**, not a
+16-value gate string: `pat=0|6|10` hits steps 0, 6 and 10. Every hit is placed by an
+**absolute** `adelay` (milliseconds), so there is no cumulative drift. `pat` is
+looped with `aloop` after `asetpts` and an exact `whole_len`; the loop boundaries are
+sample-accurate (measured). For a looped pattern, each copy is cut at the pattern
+boundary (`pat_bars * bar`), so set `trim` at most that length.
 
-Examples:
+Examples (step indices, not gates):
 
 ```
-| name | sample                             | params |
-|------|------------------------------------|--------|
-| kick | samples/triphop_kit/kick.wav       | pat=0\|6\|10, gain=1.0, trim=0.6 |
-| brk  | samples/breaks/amen.wav            | hits=0\|32\|64\|96, rate=0.81, gain=0.75, trim=5.4545 |
+| name  | sample                          | params |
+|-------|---------------------------------|--------|
+| kick  | samples/stoner_kit/kick.wav     | pat=0\|6\|8\|14, trim=0.55 |
+| brk   | samples/breaks/amen.wav         | hits=0\|32\|64\|96, rate=0.56176, trim=5.714286 |
+| vinyl | samples/vinyl/crackle.wav       | pat=0, pat_bars=31, trim=88.571429, gain=0.8 |
 ```
 
-`stoner_samples` pitches a sampled guitar and bass (roots C2 = 65.41, C3 = 130.81):
+`stoner_samples` pitches a sampled guitar and bass (roots C2 = 65.41, C3 = 130.81)
+and uses a 2-bar, 16-hit riff:
 
 ```
 | name | sample                        | params |
 |------|-------------------------------|--------|
-| bass | samples/stoner_kit/bass.wav   | pat=1\|0\|1\|0, notes=65.41\|65.41\|77.78\|77.78, root=65.41, trim=0.45, fx=highpass=f=30;lowpass=f=900;asoftclip=type=tanh:threshold=0.6 |
-| gtr  | samples/stoner_kit/gtr_c2.wav | pat=1\|0\|1\|0, notes=65.41\|65.41\|77.78\|77.78, root=65.41, trim=0.35, fx=highpass=f=60;lowpass=f=6000;equalizer=f=900:t=q:w=1:g=3 |
+| bass | samples/stoner_kit/bass.wav   | pat=0\|2\|4\|6\|8\|10\|12\|14\|16\|18\|20\|22\|24\|26\|28\|30, pat_bars=2, notes=65.41\|65.41\|77.78\|87.31\|65.41\|65.41\|77.78\|98\|65.41\|65.41\|77.78\|87.31\|103.83\|103.83\|98\|87.31, trim=0.8 |
+| gtr  | samples/stoner_kit/di_c2.wav@65.41\|di_e2.wav@82.41\|di_a2.wav@110\|di_c3.wav@130.81 | pat=0\|2\|4\|6\|8\|10\|12\|14\|16\|18\|20\|22\|24\|26\|28\|30, pat_bars=2, notes=65.41\|65.41\|77.78\|87.31\|65.41\|65.41\|77.78\|98\|65.41\|65.41\|77.78\|87.31\|103.83\|103.83\|98\|87.31, chord=1\|1.5:0.7\|2:0.45, trim=1.2 |
 ```
+
+## 22. Deliverables and audit
+
+**Tracked documentation.** `README.md` is the practical guide (setup, commands,
+editing, samples, video, troubleshooting). `SPEC.md` is this SRS. `AEVAL_TUTORIAL.md`
+is the from-scratch `aevalsrc`/`aeval` guide. `CHANGELOG.md` records the work;
+`TODO.md` records the current open items. `docs/ffmpeg_cheatsheet.png` and its
+generator are tracked because the card is embedded in the README.
+
+**Rendered deliverables.** `output/` is gitignored. The current trip-hop assets are
+`output/triphop_samples/techno_v28.wav` (full 228.571 s render),
+`output/triphop_samples/techno_v29.wav` (delivered 222.857 s cut),
+`output/triphop_samples/ASYNCHRONOUS_1080p.mp4` (the YouTube cut), and
+`output/triphop_samples/cover.jpg` plus its clean source `cover_v1.jpg`. Versioned
+earlier cuts are kept beside the current one.
+
+**Clean audit builds.** `python -m fftechno audio --song S --out out2` writes an
+independent tree under `out2/S/` (gitignored). `filters/S/` remains shared. This is
+the recommended way to verify every song without adding `_vN` files to `output/`.
+
+**Code audit (this pass).**
+
+- Every Python function and method has a docstring: 186 functions, 0 missing
+  (AST scan over `fftechno/*.py`, `visualizer.vpy` and `docs/make_cheatsheet.py`).
+- `pyflakes`, `ruff` and `black --check` are clean; `vulture` reports no dead code
+  at 60% confidence.
+- Removed stale code: the unused `Look.decode` attribute (the pipeline uses
+  `decode_filter`) and the unused `ascii_for_block` cache helper in the visualizer.
+- Fixed the stale `--tts` error message (it now lists `flite`) and the stale
+  `pyproject.toml` / package descriptions.
+- The only known repository-level leftover is the separate
+  `.worktrees/aeval` git worktree (branch `aeval-split`), which is not part of the
+  main build.

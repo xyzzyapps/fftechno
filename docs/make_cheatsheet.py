@@ -58,6 +58,7 @@ def wrap(draw, text, font, max_w):
 
 
 def section(draw, x, y, title, rows, width=COLW):
+    """Draw one titled section of label/code rows and return the next y."""
     draw.text((x, y), title, font=HEADER, fill=ACCENT)
     y += 38
     for label, code in rows:
@@ -69,6 +70,7 @@ def section(draw, x, y, title, rows, width=COLW):
 
 
 def main():
+    """Render the complete card to ``docs/ffmpeg_cheatsheet.png``."""
     image = Image.new("RGB", (W, H), BG)
     draw = ImageDraw.Draw(image)
     draw.rectangle([22, 22, W - 23, H - 23], outline=BORDER)

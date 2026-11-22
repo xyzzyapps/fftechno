@@ -19,7 +19,7 @@ from .matte import dilate, largest_component
 
 
 def fit(out_w: int, out_h: int) -> str:
-    """Resample to the video fps and letterbox into a 16:9 frame."""
+    """Resample to the video fps and letterbox into the output frame."""
     return (
         f"fps={C.VIDEO_FPS},scale=-2:{out_h}:flags=lanczos,"
         f"pad={out_w}:{out_h}:(ow-iw)/2:(oh-ih)/2:black"
@@ -36,7 +36,6 @@ class Look(ABC):
     needs_matte: bool = False  # run RVM matting before the transform?
     emits: str = "stack"  # "stack" (grey npy) | "sprites" (RGB npy + pick)
     accumulation: str | None = None  # shader hint for stack looks
-    decode: str = "native"  # "native" or "fitted" (half the output size)
 
     def configure(self, params: dict[str, str]) -> None:
         """Apply per-song overrides from ``video.md`` (optional)."""
@@ -69,6 +68,7 @@ class EdgeLook(Look):
     _EDGE = "edgedetect=low=0.08:high=0.25"
 
     def stack_filter(self, out_w: int, out_h: int) -> str:
+        """Build the edgedetect filter for the matted, fitted frame."""
         return f"[0:v]{fit(out_w, out_h)},{self._EDGE}[out]"
 
 
@@ -80,6 +80,7 @@ class PollockLook(Look):
     accumulation = "trail"
 
     def _filter(self, out_w: int, out_h: int, accumulate: bool) -> str:
+        """Build the crossed-edge painting filter, optionally accumulating."""
         head = (
             f"[0:v]{fit(out_w, out_h)},gblur=sigma=1.5,"
             f"edgedetect=low=0.08:high=0.30,split=3[a][b][c];"
@@ -99,9 +100,11 @@ class PollockLook(Look):
         )
 
     def stack_filter(self, out_w: int, out_h: int) -> str:
+        """The still-frame stack version of the painted look."""
         return self._filter(out_w, out_h, False)
 
     def loop_filter(self, out_w: int, out_h: int) -> str:
+        """The accumulated-loop version of the painted look."""
         return self._filter(out_w, out_h, True)
 
 
@@ -111,22 +114,24 @@ class OutlineLook(Look):
     name = "outline"
     needs_matte = True
     emits = "sprites"
-    decode = "fitted"
     top_margin = 70  # rows ignored at the top (e.g. a light truss)
     hair_gain = 1.15
 
     def configure(self, params: dict[str, str]) -> None:
+        """Apply ``top_margin`` and ``hair_gain`` overrides."""
         if "top_margin" in params:
             self.top_margin = int(params["top_margin"])
         if "hair_gain" in params:
             self.hair_gain = float(params["hair_gain"])
 
     def stack_filter(self, out_w: int, out_h: int) -> str:  # pragma: no cover
+        """Not used: outline emits RGB sprites instead of a grey stack."""
         raise NotImplementedError("outline emits sprites, not a stack")
 
     def sprites(
         self, frames: np.ndarray, model: Callable[[np.ndarray], np.ndarray]
     ) -> np.ndarray:
+        """Build white silhouette + blue-hair RGB sprites from matted frames."""
         h, w = frames.shape[1:3]
         sprites = np.zeros((frames.shape[0], h, w, 3), np.uint8)
         for i, frame in enumerate(frames):
@@ -159,7 +164,6 @@ class PhotoLook(Look):
     name = "photo"
     needs_matte = False
     emits = "sprites"
-    decode = "fitted"
     crop_bottom = 0.0  # fraction of the image height trimmed off the bottom
     crop_right = 0.0  # fraction of the image width trimmed off the right
     framing = "fit"  # "fit" (letterbox) | "fill" (cover + centre crop)
@@ -168,6 +172,7 @@ class PhotoLook(Look):
     shift_y = 0.0  # ... and down = +
 
     def configure(self, params: dict[str, str]) -> None:
+        """Apply the photo framing, trimming and shift knobs from video.md."""
         if "crop_bottom" in params:
             self.crop_bottom = float(params["crop_bottom"])
         if "crop_right" in params:
@@ -211,6 +216,7 @@ class PhotoLook(Look):
         )
 
     def decode_filter(self, out_w: int, out_h: int) -> str:
+        """The crop/scale/pad chain that frames the still for the output."""
         parts = [f"fps={C.VIDEO_FPS}"]
         if self.crop_bottom:
             parts.append(f"crop=iw:ih*{max(0.0, 1.0 - self.crop_bottom):.4f}:0:0")
@@ -236,6 +242,7 @@ class PhotoLook(Look):
         return ",".join(parts)
 
     def stack_filter(self, out_w: int, out_h: int) -> str:  # pragma: no cover
+        """Not used: photo emits one RGB sprite instead of a grey stack."""
         raise NotImplementedError("photo emits sprites, not a stack")
 
     def sprites(self, frames: np.ndarray, model=None) -> np.ndarray:

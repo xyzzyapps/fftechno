@@ -36,6 +36,7 @@ def source_clip(song: Song) -> Path:
 
 
 def _probe(path: Path) -> tuple[int, int, float]:
+    """Return ``(width, height, fps)`` of the first video stream in *path*."""
     out = subprocess.run(
         [
             "ffprobe",
@@ -70,6 +71,7 @@ def _window(src: Path, video) -> tuple[float, float]:
 def _decode_crop(
     src: Path, vf: str, pix: str, w: int, h: int, start: float, dur: float
 ) -> np.ndarray:
+    """Decode *src* through *vf* into an ``(N, h, w, channels)`` array."""
     seek = ["-ss", str(start), "-t", str(dur)] if dur else []
     raw = subprocess.run(
         [

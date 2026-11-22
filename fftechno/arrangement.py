@@ -35,14 +35,17 @@ class Song:
 
     @property
     def bar_seconds(self) -> float:
+        """Seconds in one bar (four beats at the song's BPM)."""
         return 60.0 / self.bpm * 4.0
 
     @property
     def stems(self) -> set[str]:
+        """The set of stem names in the Stems table."""
         return set(self.stems_order)
 
 
 def _need(mapping: dict, key, where: str):
+    """Return ``mapping[key]`` or fail with a song.md error naming *where*."""
     if key not in mapping:
         raise SystemExit(f"song.md: '{where}' has no entry for '{key}'")
     return mapping[key]
@@ -155,6 +158,7 @@ def gain_expr(parsed: Song, stem: str) -> str:
 
 
 def _pan(stem: str, src: str, pan: dict[str, tuple]) -> str:
+    """The ffmpeg pan/placement chain for one stem, from its Pan row."""
     placement = _need(pan, stem, "Pan")
     if placement[0] == "keep":
         # The stem is already stereo (an effect in its own graph, e.g. a ping-pong

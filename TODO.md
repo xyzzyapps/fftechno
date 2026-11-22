@@ -2,10 +2,14 @@
 
 Songs under `songs/`, driven by markdown: **basement** (155 BPM jungle techno),
 **hardgroove** (140 BPM), **minimal** (100 BPM, 7 stems, 1920x1080 `photo` video),
-**triphop** (84 BPM, audio only) and **triphop_samples** (88 BPM, the first
-**sample-based** track: a downloaded drum kit + the Amen break). **triphop_beat** is
-an 8-bar synthesised scratch at 88 BPM. A folder is the song. There is no song
+**triphop** (84 BPM, audio only), **triphop_beat** (88 BPM, 8-bar scratch) and
+**triphop_samples** (84 BPM, 80 bars = 3:48.6, four elements: Amen break, sub,
+electric piano, vinyl; delivered cut 3:42.9). **psych**, **stoner** and
+**stoner_samples** are the rock tracks. A folder is the song. There is no song
 subclass.
+
+This file is a chronological log. Earlier entries may describe superseded
+versions; the summary above, `README.md` and `SPEC.md` are authoritative.
 
 ## Done
 
@@ -87,6 +91,16 @@ pairwise time warp, deterministic randomness (`random(idx)`, `st`/`ld`, per-step
 hashes), the effect mapping to DAW plugins, a DAW/Electribe comparison, and the
 "no MIDI, not realtime" answer. Every runnable example was executed against
 ffmpeg 9.0.2 (see the doc's preamble). Linked from README + SPEC.
+
+## Open - full song build audit
+
+- Run `python -m fftechno audio --song S --out out2` for all nine songs and record
+  each duration, loudness and exit code. This was stopped at the user's request after
+  `basement` (complete, 240 s) and `triphop_beat` (complete, 21.818 s); `hardgroove`
+  was partial. `out2/` is gitignored and was removed/stopped, so recreate it when
+  resuming.
+- `hardgroove` and `basement` need the Kitten TTS model; the other seven are
+  instrumental or sample-only.
 
 ## Optional next
 
@@ -216,9 +230,10 @@ SPEC.md 12.5. Notes kept for reference:
 
 - The `edge` look needs the RVM model; the `pollock` look does not.
 
-## Done - sample-based trip-hop beat (`songs/triphop_samples/`)
+## Done - first sample-based trip-hop beat (`songs/triphop_samples/`, superseded)
 
 The first **sample-based** song: real audio files instead of `aevalsrc` oscillators.
+This 8-bar, 88 BPM scratch was replaced by the full four-element track below.
 
 - **Samples store** (`samples/manifest.md`, tracked; the wavs are gitignored):
   `python -m fftechno samples` downloads and normalises each file to 48 kHz PCM
@@ -235,10 +250,10 @@ The first **sample-based** song: real audio files instead of `aevalsrc` oscillat
   21.818 s, -13.1 LUFS, -1.0 dBTP.
 - **Additive verified:** `synth --song minimal` and `--song basement` produce no diff
   (existing `filters/` unchanged). Docs: README + SPEC 21.
-- **Not used:** loop filters. `aloop` drifts at this grid, so hits are placed with
-  absolute delays (a long song means one filter chain per hit).
+- **Early placement:** this first version placed every hit with an absolute `adelay`
+  (one chain per hit). The full track below uses the `pat` + `aloop` path instead.
 
-### Rework - full 4-minute sample trip hop (in progress)
+### Done - full sample trip hop (`triphop_samples`)
 
 User was unhappy with the earlier results; the repo had also moved on (a committed
 synth `triphop` at 84 BPM + the sample route). A stale-architecture rewrite had
@@ -365,14 +380,11 @@ clobbered `songs/triphop/`; **restored from HEAD** and deleted the redundant
 
 ### Optional next (samplers)
 
-- Loop a one-bar pattern without per-hit expansion (a two-stage build: render the bar
-  to a wav, then `amovie` it) - needed before a 4-minute sample song.
 - Keep the Amen break stereo (the sampler folds everything to mono today).
 - A `Sends` table so a sampler stem can hit the project reverb/delay.
 - Re-encode the `## Samplers` graph so a *missing* sample file fails with the exact
   row, not a filter error (e.g. `rim`/`snare-short` are fetched but unused).
-- `fftechno/md.py` is not black-clean under the installed black (pre-existing, not
-  touched here); `task lint` will flag it.
+- `fftechno/md.py` is now black-clean; the old note about it is resolved.
 
 ## Done - `psych` (1960s psychedelic rock / wall of sound)
 

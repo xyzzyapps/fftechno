@@ -1,20 +1,27 @@
 # Changelog
 
 ## Unreleased
+- **Code and docs audit.** Removed the unused `Look.decode` attribute and the unused
+  ASCII cache helper in the visualizer; added docstrings to all 186 Python functions;
+  fixed stale `--tts` and metadata text; added `audio --out DIR` for clean audit
+  builds; rewrote the README as a practical guide and refreshed SPEC with the final
+  trip-hop facts, the cover-video pipeline and the cheat sheet. pyflakes, ruff,
+  black and vulture are clean.
 - **Cheat sheet.** `docs/ffmpeg_cheatsheet.png` (1080x1350) maps the techniques this
   project uses - synthesis, sequencing, filters, sampler, mastering, video/checks -
   with `docs/make_cheatsheet.py` as its generator (Pillow plus the system Times New
   Roman / Consolas fonts; render-only). Linked from the README.
-- **Trip hop rework (`triphop_samples`) - a real break, four elements.** It is now a
-  full 4:00 minimal track (84 BPM, 80 bars, D minor): the **Amen break**, a **sub**,
-  a dusty **electric piano** and **vinyl**. The Amen is varispeeded 136 -> 84
-  (`rate=0.56176`) and trimmed to a two-bar loop; the file's real tempo is ~149.5 BPM
-  (its pattern repeats every 1.605 s), not the "136" in its name, so the old windows
-  did not match the phrase and the loop jumped - verified by self-correlation (0.957
-  at the 5.7143 s loop point). The sub is now bar-length, punchy and quiet
-  (`sub_async.txt`: fast attack, short pitch thump, decaying harmonics) on a 5-bar
-  phrase that drifts against the harmony, and it plays only while the piano does.
-  Master `techno_v14.wav` (-13.0 LUFS / -1.1 dBTP). A 1080x1080 cover and a
+- **Trip hop rework (`triphop_samples`) - a real break, four elements.** It is now an
+  **80-bar minimal track (84 BPM, 3:48.57, D minor; the delivered cut is 3:42.86)**:
+  the **Amen break**, a **sub**, a dusty **electric piano** and **vinyl**. The Amen is
+  varispeeded to the 84 BPM grid (`rate=0.56176`) and trimmed to a two-bar loop; the
+  file's real tempo is ~149.5 BPM (its pattern repeats every 1.605 s), not the "136"
+  in its name, so the old windows did not match the phrase and the loop jumped -
+  verified by self-correlation (0.957 at the 5.7143 s loop point). The sub is now
+  bar-length, punchy and quiet (`sub_async.txt`: fast attack, short pitch thump,
+  decaying harmonics) on a 5-bar phrase that drifts against the harmony, and it plays
+  only while the piano does. The full render is `techno_v28.wav`; the delivered cut is
+  `techno_v29.wav` (222.857 s, -13.0 LUFS / -1.2 dBTP). A 1080x1080 cover and a
   1920x1080 YouTube video were rendered from `image.jpg`. The vinyl bed is now a
   **real record-groove sample from YouTube** (`samples/vinyl/crackle.wav`, "Old Vinyl
   Record Crackle On Loop for 1 Hour", 90 s from `t=120`, fetched with `yt-dlp`: the

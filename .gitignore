@@ -1,4 +1,5 @@
 .venv/
+out2/
 asciii.bak
 tools/
 ascii/

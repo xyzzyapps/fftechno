@@ -53,6 +53,7 @@ class Video:
         return (1280, 720) if self.width >= self.height else (720, 1280)
 
     def source_path(self) -> Path:
+        """Resolve the configured source path against the repo root."""
         p = Path(self.source) if self.source else Path("")
         return p if p.is_absolute() else (C.ROOT / p)
 
@@ -61,6 +62,7 @@ class Song:
     """A track: its markdown files, derived timing and output paths."""
 
     def __init__(self, name: str) -> None:
+        """Create a song handle by folder name (files are loaded lazily)."""
         if not name:
             raise ValueError("a Song needs a name")
         self.name = name
@@ -68,82 +70,102 @@ class Song:
     # --- paths -------------------------------------------------------------
     @property
     def dir(self) -> Path:
+        """The song's folder under ``songs/``."""
         return C.SONGS / self.name
 
     @property
     def song_md(self) -> Path:
+        """Path to ``song.md``."""
         return self.dir / "song.md"
 
     @property
     def sounds_md(self) -> Path:
+        """Path to ``sounds.md``."""
         return self.dir / "sounds.md"
 
     @property
     def vocals_md(self) -> Path:
+        """Path to ``vocals.md``."""
         return self.dir / "vocals.md"
 
     @property
     def video_md(self) -> Path:
+        """Path to ``video.md``."""
         return self.dir / "video.md"
 
     @property
     def filters(self) -> Path:
+        """Directory for this song's generated filter graphs."""
         return C.FILTERS / self.name
 
     @property
     def output(self) -> Path:
+        """Directory for this song's renders and logs."""
         return C.OUTPUT / self.name
 
     @property
     def stems(self) -> Path:
+        """Directory for the rendered stem wavs."""
         return self.output / "stems"
 
     @property
     def logs(self) -> Path:
+        """Directory for build logs and intermediate files."""
         return self.output / "logs"
 
     @property
     def audio(self) -> Path:
+        """The master wav path (newest version is chosen by the CLI)."""
         return self.output / "techno.wav"
 
     @property
     def mix_pre(self) -> Path:
+        """The pre-master mix wav."""
         return self.output / "mix_pre.wav"
 
     @property
     def ir(self) -> Path:
+        """The convolution-reverb impulse response wav."""
         return self.logs / "ir.wav"
 
     @property
     def lock(self) -> Path:
+        """The build-lock file."""
         return self.logs / ".build.lock"
 
     @property
     def master_video(self) -> Path:
+        """The master video path."""
         return self.output / "techno_visualizer.mp4"
 
     @property
     def preview_video(self) -> Path:
+        """The 720p-class preview video path."""
         return self.output / "techno_visualizer_720p.mp4"
 
     @property
     def girl_loop(self) -> Path:
+        """The standalone picture-loop video."""
         return self.output / "girl_loop.mp4"
 
     @property
     def girl_frames(self) -> Path:
+        """Grey frame-stack data for the edge/pollock looks."""
         return self.output / "girl_frames.npy"
 
     @property
     def girl_sprites(self) -> Path:
+        """RGB sprite data for the outline/photo looks."""
         return self.output / "girl_sprites.npy"
 
     @property
     def girl_pick(self) -> Path:
+        """Per-frame sprite index for the outline look."""
         return self.output / "girl_pick.npy"
 
     @property
     def lyrics(self) -> Path:
+        """On-screen lyric timing JSON."""
         return self.output / "lyrics.json"
 
     # --- music -------------------------------------------------------------
@@ -157,18 +179,22 @@ class Song:
 
     @property
     def bpm(self) -> float:
+        """The song's tempo in beats per minute."""
         return self.arrangement().bpm
 
     @property
     def bar(self) -> float:
+        """Seconds in one bar."""
         return 60.0 / self.bpm * 4.0
 
     @property
     def duration(self) -> float:
+        """The song length in seconds (bars times one bar)."""
         return self.arrangement().bars * self.bar
 
     # --- vocals ------------------------------------------------------------
     def vocals(self) -> Vocals:
+        """Parse ``vocals.md`` (engine, voice, trim_lead and phrase times)."""
         if not self.vocals_md.exists():
             return Vocals()
         text = self.vocals_md.read_text(encoding="utf-8")
@@ -183,6 +209,7 @@ class Song:
 
     # --- video -------------------------------------------------------------
     def video(self) -> Video:
+        """Parse ``video.md`` (source, look, size, effect chain and parameters)."""
         if not self.video_md.exists():
             return Video()
         text = self.video_md.read_text(encoding="utf-8")

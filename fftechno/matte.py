@@ -25,6 +25,7 @@ class MatteModel:
     """
 
     def matte(self, rgb: np.ndarray) -> np.ndarray:  # pragma: no cover - interface
+        """Return an ``(H, W)`` float32 alpha matte for one RGB frame."""
         raise NotImplementedError
 
 
@@ -37,6 +38,7 @@ class RVMMatte(MatteModel):
         downscale: float = 0.5,
         providers: list[str] | None = None,
     ) -> None:
+        """Load the RVM ONNX model and seed its recurrent state."""
         import onnxruntime as ort  # imported lazily so audio-only builds stay light
 
         if not Path(model_path).exists():

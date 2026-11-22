@@ -3,19 +3,23 @@
 Minimal instrumental trip hop, **84 BPM**, DJ Shadow / DJ Krush mould. Four
 elements only:
 
-- `brk` - the **Amen break** (real sample), varispeeded 136 -> 84 (`rate=0.617647`)
-  and trimmed to exactly two bars so its backbeat lands on the grid, high-passed at
-  200 Hz so it occupies the midrange. It is the only drum source (no second kit).
-- `sub` - a deep **sub bass** following the actual chord roots A - Bb - D - A
-  (one note per two bars), side-chained to the break.
+- `brk` - the **Amen break** (real sample), varispeeded to the 84 BPM grid
+  (`rate=0.56176`) and trimmed to a two-bar loop (`trim=5.714286`). The source file's
+  pattern is really ~149.5 BPM (it repeats every 1.605 s), not the "136" in its name.
+  It is the only drum source (no second kit), high-passed at 200 Hz, low-passed at
+  8 kHz and softly clipped so it occupies the midrange.
+- `sub` - a deep **sub bass**, one bar-long note per step of a 5-bar phrase that
+  drifts against the 8-bar harmony. It enters with the piano at bar 16, is laid back
+  0.13 s, and is quiet and punchy.
 - `ep` - a **dusty FM electric piano** on the 8-bar loop Am - Bb - Dm - A7, one
   soft attack per bar.
-- `vinyl` - the dust: a **real CC0 record-crackle sample** (Freesound 637931 by
-  kyles, 74.7 s stereo), looped every 26 bars with just a gentle top roll-off.
+- `vinyl` - the dust: a **90 s record-groove sample from YouTube** (see
+  `samples/manifest.md`; not CC-licensed, used noncommercially), looped every 31
+  bars as-is with only a -1.9 dB gain trim (`gain=0.8`).
 
-`pat` = 16th steps inside one bar (looped); `hits` = absolute 16th steps (the break,
-every two bars). `trim` seconds per copy; `rate` varispeed; `fx` per-hit filters
-(`;` becomes `,`).
+`pat` is a list of 16th-step indices inside the pattern (not a 16-value gate string);
+`hits` places sparse hits at absolute 16th steps. `trim` is the seconds per copy;
+`rate` is varispeed; `fx` is a per-hit filter chain (`;` becomes `,`).
 
 sr: 192000
 lp: 16000

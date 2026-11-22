@@ -1,7 +1,7 @@
 [project]
 name = "fftechno"
 version = "0.2.0"
-description = "Hardgroove techno track (ffmpeg synthesis) + B/W dancing-girl VapourSynth video."
+description = "Build songs from Markdown with ffmpeg synthesis and an optional VapourSynth video."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = []

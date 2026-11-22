@@ -61,6 +61,7 @@ def _expand(values: dict[str, str], name: str) -> dict[str, str]:
         for key, raw in list(out.items()):
 
             def repl(match: re.Match[str], current: dict[str, str] = out) -> str:
+                """Substitute one placeholder from the current scalar map."""
                 token = match.group(1)
                 if token not in current:
                     return match.group(0)
@@ -86,7 +87,10 @@ def _params(cell: str) -> dict[str, str]:
 
 
 def _simple(text: str, values: dict[str, str], name: str) -> str:
+    """Substitute every ``{{key}}`` in *text*, failing on an unknown key."""
+
     def repl(match: re.Match[str]) -> str:
+        """Return the value for one placeholder, or raise a named error."""
         key = match.group(1)
         if key not in values:
             raise SystemExit(f"sounds.md: instrument '{name}' needs value '{key}'")
@@ -105,7 +109,10 @@ def _val(values: dict[str, str], token: str, name: str) -> str:
 
 
 def _render(template: str, values: dict[str, str], name: str) -> str:
+    """Expand ``if_steps`` calls, then substitute ordinary placeholders."""
+
     def expand(match: re.Match[str]) -> str:
+        """Turn one ``if_steps`` call into a nested ffmpeg ``if`` ladder."""
         keys = [a.strip() for a in match.group(1).split(";")]
         if len(keys) != 3:
             raise SystemExit(f"if_steps needs 3 ';'-separated args in '{name}'")

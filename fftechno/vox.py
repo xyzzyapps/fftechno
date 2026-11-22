@@ -1,10 +1,10 @@
 """Speech vocal stem for a song.
 
-A local neural TTS - **Kitten TTS** (``kittenml`` + the nano ONNX model) or
-**Piper** - synthesises each phrase from the song's ``vocals.md``; the same
-(text, time) list is written to ``lyrics.json`` for the video's on-screen lyrics.
-Both engines run offline; the engine/voice come from ``vocals.md`` (overridable
-with ``--tts``).
+A local neural TTS - **Kitten TTS** (``kittenml`` + the nano ONNX model),
+**Piper**, or ffmpeg's built-in **flite** - synthesises each phrase from the
+song's ``vocals.md``; the same (text, time) list is written to ``lyrics.json`` for
+the video's on-screen lyrics. All engines run offline; the engine/voice come from
+``vocals.md`` (overridable with ``--tts``).
 """
 
 from __future__ import annotations
@@ -38,6 +38,7 @@ def _treat(sr: int) -> str:
 
 
 def _kitten_model():
+    """Load (and cache) the Kitten TTS model."""
     global _KITTEN
     if _KITTEN is None:
         from kittenml import KittenTTS
@@ -47,6 +48,7 @@ def _kitten_model():
 
 
 def _say_kitten(text: str, wav, voice: str) -> int:
+    """Synthesise *text* with Kitten TTS and write a wav; returns its rate."""
     import soundfile as sf
 
     audio = _kitten_model().generate(text, voice=voice, speed=1.15)
@@ -55,6 +57,7 @@ def _say_kitten(text: str, wav, voice: str) -> int:
 
 
 def _say_piper(text: str, wav, voice: str) -> int:
+    """Synthesise *text* with a Piper voice and write a wav; returns its rate."""
     model = C.PIPER_VOICES / f"{voice}.onnx"
     if not C.PIPER.exists() or not model.exists():
         raise SystemExit(f"piper/voice not found ({C.PIPER}, {model}); see SPEC.md")
@@ -142,6 +145,7 @@ def placement_graph(
 
 
 def write_lyrics(song: Song, lines: list[tuple[str, float]]) -> None:
+    """Write the (text, time) list as ``lyrics.json`` for the video."""
     song.lyrics.write_text(
         json.dumps([[t, round(s, 3)] for t, s in lines]), encoding="utf-8"
     )
@@ -154,7 +158,9 @@ def render(song: Song, engine: str | None = None) -> None:
         return
     engine = engine or vocals.engine
     if engine not in _ENGINES:
-        raise SystemExit(f"unknown TTS engine '{engine}' (use 'kitten' or 'piper')")
+        raise SystemExit(
+            f"unknown TTS engine '{engine}' (use 'kitten', 'piper' or 'flite')"
+        )
     say = _ENGINES[engine]
 
     song.filters.mkdir(parents=True, exist_ok=True)

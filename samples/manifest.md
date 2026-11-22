@@ -51,9 +51,11 @@ in a song's `sounds.md` `## Samplers` table.
   "public domain or similar", but this kit carries no explicit per-kit licence (the
   upstream is a free F9 Audio 909 pack). Treat as royalty-free; the repo is
   non-commercial anyway.
-- **breaks/amen.wav** is the full Amen break (`amenbreak_bpm136.wav`, 136 BPM) from
-  [schollz/amen](https://github.com/schollz/amen), released under the MIT licence.
-  This is a licensed copy, *not* a rip of The Winstons' 1969 recording.
+- **breaks/amen.wav** is the full Amen break (`amenbreak_bpm136.wav`, named 136 BPM)
+  from [schollz/amen](https://github.com/schollz/amen), released under the MIT
+  licence. The filename says 136, but the pattern actually repeats every 1.605 s
+  (~149.5 BPM); `triphop_samples` uses `rate=0.56176` to land two bars on the 84 BPM
+  grid. This is a licensed copy, *not* a rip of The Winstons' 1969 recording.
 - Some of the source WAVs are 24-bit with a short trailing packet that makes ffmpeg
   print `Invalid PCM packet`; it is harmless (verified bit-identical) and disappears
   after `python -m fftechno samples` normalises them.

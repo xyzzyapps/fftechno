@@ -14,7 +14,7 @@ Adding an effect is one subclass here plus a name in a song's ``video.md``:
     effects: squares, grain
 
 and, if it takes knobs, an ``| effect | key | value |`` row in the song's
-``video.md`` (the ``## Effect Parameters`` table).
+``video.md`` (the ``## Parameters`` table).
 
 The default chain reproduces the original hand-written shader (grain + vignette +
 kick flash + kick glitch), so songs that do not name any effects render unchanged.
@@ -96,6 +96,7 @@ class Effect(ABC):
     defaults: ClassVar[dict[str, str]] = {}
 
     def __init__(self, params: dict[str, str] | None = None) -> None:
+        """Merge *params* over the class defaults."""
         self.params: dict[str, str] = {**self.defaults, **(params or {})}
         # Instruments this effect wants envelopes for (filled by build_chain).
         self.required: tuple[str, ...] = ()
@@ -146,6 +147,7 @@ class PaintCtx:
 
     @property
     def t(self) -> float:
+        """Frame time in seconds."""
         return self.index / self.fps
 
     @property
@@ -165,6 +167,7 @@ class KickFlash(Effect):
     defaults: ClassVar[dict[str, str]] = {"base": "1.02", "gain": "0.9"}
 
     def glsl_apply(self) -> str:
+        """Brighten the whole picture by the kick envelope."""
         return f"    col *= ({self.f('base', 1.02):g} + kick*{self.f('gain', 0.9):g});"
 
 
@@ -175,6 +178,7 @@ class Vignette(Effect):
     defaults: ClassVar[dict[str, str]] = {"amount": "0.35"}
 
     def glsl_apply(self) -> str:
+        """Darken pixels towards the frame edge."""
         return f"    col *= 1.0 - {self.f('amount', 0.35):g}*r;"
 
 
@@ -185,6 +189,7 @@ class Grain(Effect):
     defaults: ClassVar[dict[str, str]] = {"amount": "0.03"}
 
     def glsl_apply(self) -> str:
+        """Add per-pixel film grain."""
         return f"    col += (random - 0.5)*{self.f('amount', 0.03):g};"
 
 
@@ -200,9 +205,11 @@ class KickGlitch(Effect):
     }
 
     def glsl_helpers(self) -> str:
+        """GLSL hash used to jitter the glitch."""
         return "float hash(float n){ return fract(sin(n)*43758.5453); }"
 
     def glsl_apply(self) -> str:
+        """Apply the one-frame glitch when the kick is loud enough."""
         return (
             f"    if(step({self.f('threshold', 0.78):g}, kick) > 0.5){{\n"
             f"        col = col*{self.f('gain', 1.3):g} "
@@ -264,6 +271,7 @@ class Squares(Effect):
     }
 
     def required_instruments(self, stems: list[str]) -> tuple[str, ...]:
+        """Return the stems to draw, in the configured order."""
         skip = set(self.lst("skip", ("vox",)))  # the voice is on screen already
         order = [s for s in SQUARE_ORDER if s in stems and s not in skip]
         order += [s for s in sorted(stems) if s not in order and s not in skip]
@@ -271,6 +279,7 @@ class Squares(Effect):
 
     # --- setup --------------------------------------------------------------
     def prepare(self, env: dict[str, np.ndarray], fps: int) -> None:
+        """Precompute presence, vibration and size arrays from the envelopes."""
         self._names = list(self.required)
         self._roles = [
             ROLES.get(n, ROLE_CYCLE[i % len(ROLE_CYCLE)])
@@ -301,6 +310,7 @@ class Squares(Effect):
 
     # --- drawing ------------------------------------------------------------
     def paint(self, ctx: PaintCtx) -> None:
+        """Draw every active square or ring for this frame."""
         h, w = ctx.luma.shape
         if self._grid is None or self._grid.shape[1:] != (h, w):
             self._grid = np.indices((h, w), dtype=np.float32)
