@@ -2,14 +2,14 @@
 
 The song-specific visual settings read by `python -m fftechno girl|video`.
 
-The **source** is a still photo (no dancing-girl loop) and the **effects** are an
-ordered chain: `squares` draws white outline squares that vibrate with the
-instruments, `grain` adds film grain. Everything else has a default.
+The **source** is the first image in `ascii/` (add a `source:` line to name one
+explicitly), and the **effects** are an ordered chain: `squares` draws white
+outline squares that vibrate with the instruments, `grain` adds film grain.
+Everything else has a default.
 
 The output is **horizontal** (`1920x1080`, the default) to match the 16:9 photo, and
 the photo **fills** the frame, so there are no black bars.
 
-source: Gemini_Generated_Image_51i77351i77351i7.png
 look: photo
 effects: squares, grain
 

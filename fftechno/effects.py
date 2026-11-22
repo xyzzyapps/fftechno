@@ -213,7 +213,7 @@ class KickGlitch(Effect):
         return (
             f"    if(step({self.f('threshold', 0.78):g}, kick) > 0.5){{\n"
             f"        col = col*{self.f('gain', 1.3):g} "
-            f"+ (hash(floor(t*30.0)) - 0.5)*{self.f('amount', 0.12):g};\n"
+            f"+ (hash(floor(t*FPS)) - 0.5)*{self.f('amount', 0.12):g};\n"
             "    }"
         )
 
@@ -256,6 +256,8 @@ class Squares(Effect):
         "step": "34",  # each following square is this much smaller
         "halves": "",  # explicit half-sizes, in instrument order (overrides the above)
         "skip": "vox",  # instruments to leave out of the pattern
+        "roles": "",  # optional name:role|... overrides for ROLES
+        "order": "",  # optional outer-to-inner instrument order
         "thickness": "2",  # outline width, low-res px
         "circles": "rim",  # instruments drawn as a ring instead of a square
         "swell": "0.55",  # "size" response (fraction of the half-size)
@@ -273,7 +275,9 @@ class Squares(Effect):
     def required_instruments(self, stems: list[str]) -> tuple[str, ...]:
         """Return the stems to draw, in the configured order."""
         skip = set(self.lst("skip", ("vox",)))  # the voice is on screen already
-        order = [s for s in SQUARE_ORDER if s in stems and s not in skip]
+        order = [
+            s for s in self.lst("order", SQUARE_ORDER) if s in stems and s not in skip
+        ]
         order += [s for s in sorted(stems) if s not in order and s not in skip]
         return tuple(order)
 
@@ -281,8 +285,13 @@ class Squares(Effect):
     def prepare(self, env: dict[str, np.ndarray], fps: int) -> None:
         """Precompute presence, vibration and size arrays from the envelopes."""
         self._names = list(self.required)
+        role_overrides: dict[str, str] = {}
+        for part in self.lst("roles"):
+            if ":" in part:
+                key, value = part.split(":", 1)
+                role_overrides[key.strip()] = value.strip()
         self._roles = [
-            ROLES.get(n, ROLE_CYCLE[i % len(ROLE_CYCLE)])
+            role_overrides.get(n, ROLES.get(n, ROLE_CYCLE[i % len(ROLE_CYCLE)]))
             for i, n in enumerate(self._names)
         ]
         circles = set(self.lst("circles", ("rim",)))
@@ -502,7 +511,7 @@ SHADER_BASE = """//!HOOK MAIN
 //!BIND HOOKED
 //!DESC {DESC}
 
-#define FPS 30.0
+#define FPS {FPS}
 {STRIP_HELPERS}{HELPERS}vec4 hook(){
 {STRIP_MASK}    float t = float(frame)/FPS;
     float kick = {KICK};
@@ -528,23 +537,28 @@ _STRIP_MASK = (
 )
 
 
-def assemble_shader(chain: list[Effect], desc: str, height: int = 1080) -> str:
-    """Build the full GLSL shader for *chain* at a video *height*.
+def assemble_shader(
+    chain: list[Effect], desc: str, height: int = 1080, fps: int = 30
+) -> str:
+    """Build the full GLSL shader for *chain* at a video *height* and *fps*.
 
     Shader-tier effects contribute helper functions (before ``hook``) and apply
     statements (inside ``hook``), in chain order. The strip accessors and the
     strip mask only appear when an effect actually reads the strip, so a
     strip-less chain does not blank the picture's top rows. The strip row
     coordinates depend on the frame height (the strip is written into the top rows
-    of a clip half the output size, so row 1 of the strip is at ``2/H``).
+    of a clip half the output size, so row 1 of the strip is at ``2/H``). The
+    shader clock is *fps*, so the visualizer and the shader always agree.
     """
     shaders = [e for e in chain if e.tier == "shader"]
     strip = any(e.uses_strip for e in shaders)
     helpers = "\n".join(h for h in (e.glsl_helpers() for e in shaders) if h)
     apply = "\n".join(a for a in (e.glsl_apply() for e in shaders) if a)
     rows = f"{float(height):.1f}"  # 1080.0 - keeps the default shader text identical
+    rate = f"{float(fps):.1f}"
     return (
         SHADER_BASE.replace("{DESC}", desc)
+        .replace("{FPS}", rate)
         .replace(
             "{STRIP_HELPERS}",
             _STRIP_HELPERS.replace("{H}", rows) + "\n" if strip else "",

@@ -1,6 +1,6 @@
 [project]
 name = "fftechno"
-version = "0.2.0"
+dynamic = ["version"]
 description = "Build songs from Markdown with ffmpeg synthesis and an optional VapourSynth video."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -19,6 +19,15 @@ fftechno = "fftechno.cli:main"
 [tool.black]
 line-length = 88
 target-version = ["py310"]
+
+[tool.setuptools]
+packages = ["fftechno"]
+
+[tool.setuptools.package-data]
+fftechno = ["visualizer.vpy"]
+
+[tool.setuptools.dynamic]
+version = { attr = "fftechno.__version__" }
 
 [tool.ruff]
 line-length = 100

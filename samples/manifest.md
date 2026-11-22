@@ -7,10 +7,12 @@ are **not** committed (`.gitignore`), so a clone reproduces them from here. Keep
 `url` and `license` columns honest; a licence with a `|` in it must be reworded.
 
 Add a row, run `python -m fftechno samples`, then reference `samples/<set>/<file>`
-in a song's `sounds.md` `## Samplers` table.
+in a song's `sounds.md` `## Samplers` table. The `seconds` column is used only by
+YouTube rows (the fetch length from the URL's `t=` offset); leave it blank for the
+others.
 
-| set         | file           | url                                                                                                        | license |
-|-------------|----------------|------------------------------------------------------------------------------------------------------------|---------|
+| set         | file           | url                                                                                                        | license | seconds |
+|-------------|----------------|------------------------------------------------------------------------------------------------------------|---------|---------|
 | triphop_kit | kick.wav       | https://oramics.github.io/sampled/DM/TR-909/SP/samples/kick.wav                                            | public-domain-like (oramics/sampled) |
 | triphop_kit | kick-2.wav     | https://oramics.github.io/sampled/DM/TR-909/SP/samples/kick-2.wav                                          | public-domain-like (oramics/sampled) |
 | triphop_kit | snare.wav      | https://oramics.github.io/sampled/DM/TR-909/SP/samples/snare.wav                                           | public-domain-like (oramics/sampled) |
@@ -20,7 +22,7 @@ in a song's `sounds.md` `## Samplers` table.
 | triphop_kit | clap.wav       | https://oramics.github.io/sampled/DM/TR-909/SP/samples/clap1.wav                                            | public-domain-like (oramics/sampled) |
 | triphop_kit | rim.wav        | https://oramics.github.io/sampled/DM/TR-909/SP/samples/rim.wav                                             | public-domain-like (oramics/sampled) |
 | breaks      | amen.wav       | https://raw.githubusercontent.com/schollz/amen/main/samples/amenbreak_bpm136.wav                            | MIT (schollz/amen) |
-| vinyl       | crackle.wav    | https://www.youtube.com/watch?v=DUhdSWsapuA&t=120                                                            | YouTube "Old Vinyl Record Crackle On Loop for 1 Hour" (no explicit licence; noncommercial) |
+| vinyl       | crackle.wav    | https://www.youtube.com/watch?v=DUhdSWsapuA&t=120                                                            | YouTube "Old Vinyl Record Crackle On Loop for 1 Hour" (no explicit licence; noncommercial) | 90 |
 | stoner_kit  | kick.wav       | https://oramics.github.io/sampled/DRUMS/pearl-master-studio/samples/kick-01.wav                            | CC-BY 3.0 (Pearl Master Studio by enoe / oramics) |
 | stoner_kit  | snare.wav      | https://oramics.github.io/sampled/DRUMS/pearl-master-studio/samples/snare-01.wav                           | CC-BY 3.0 (Pearl Master Studio by enoe / oramics) |
 | stoner_kit  | snare2.wav     | https://oramics.github.io/sampled/DRUMS/pearl-master-studio/samples/snare-02.wav                           | CC-BY 3.0 (Pearl Master Studio by enoe / oramics) |
@@ -59,10 +61,11 @@ in a song's `sounds.md` `## Samplers` table.
 - Some of the source WAVs are 24-bit with a short trailing packet that makes ffmpeg
   print `Invalid PCM packet`; it is harmless (verified bit-identical) and disappears
   after `python -m fftechno samples` normalises them.
-- **YouTube rows** are fetched with `yt-dlp` (`--download-sections`, 90 s from the
-  URL's `t=` offset), so `yt-dlp` must be on PATH. The audio belongs to its uploader;
-  it is used here for a noncommercial project and the source URL is recorded - it is
-  **not** a Creative Commons licence.
+- **YouTube rows** are fetched with `yt-dlp` (`--download-sections`, from the URL's
+  `t=` offset for the number of seconds in the `seconds` column), so `yt-dlp` must be
+  on PATH. The audio belongs to its uploader; it is used here for a noncommercial
+  project and the source URL is recorded - it is **not** a Creative Commons licence.
+  A YouTube row without `seconds` fails loudly; non-YouTube rows may leave it blank.
 - **stoner_kit** is a real rock kit: the **Pearl Master Studio** acoustic drums
   (CC-BY 3.0, by enoe, via oramics/sampled) and **FreePats** electric guitar/bass
   (CC0): a pre-distorted Fender guitar (`FSBS-dist1`) and a picked electric bass.

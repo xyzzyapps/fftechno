@@ -18,4 +18,4 @@ Entry point::
     python -m fftechno boost 2.0 --song basement # re-level the final MP4s
 """
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"

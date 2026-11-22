@@ -20,11 +20,12 @@ from .md import scalars as _scalars
 # ---------------------------------------------------------------------------
 @dataclass
 class Vocals:
-    """TTS voice and the (text, time) phrase list."""
+    """TTS voice, optional treatment parameters and the (text, time) phrase list."""
 
     engine: str = "kitten"
     voice: str = "Luna"
     trim_lead: bool = False  # cut the TTS's leading silence before placing
+    params: dict[str, str] = field(default_factory=dict)  # vocals.md ## Parameters
     lines: list[tuple[str, float]] = field(default_factory=list)
 
 
@@ -194,16 +195,18 @@ class Song:
 
     # --- vocals ------------------------------------------------------------
     def vocals(self) -> Vocals:
-        """Parse ``vocals.md`` (engine, voice, trim_lead and phrase times)."""
+        """Parse ``vocals.md`` (engine, voice, trim_lead, parameters and phrases)."""
         if not self.vocals_md.exists():
             return Vocals()
         text = self.vocals_md.read_text(encoding="utf-8")
         scalars = _scalars(text)
         lines = [(r[0], float(r[1])) for r in _rows(text, ["text", "time"])]
+        params = {r[0]: r[1] for r in _rows(text, ["key", "value"])}
         return Vocals(
             engine=scalars.get("engine", "kitten"),
             voice=scalars.get("voice", "Luna"),
             trim_lead=scalars.get("trim_lead", "0").lower() not in ("0", "false", "no"),
+            params=params,
             lines=lines,
         )
 

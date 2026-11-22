@@ -37,9 +37,15 @@ def _girl():
 
 def _add_song(parser: argparse.ArgumentParser) -> None:
     """Add the shared ``--song`` option to *parser*."""
+    available = songs.names()
+    default = (
+        config.DEFAULT_SONG
+        if config.DEFAULT_SONG in available
+        else (available[0] if available else "")
+    )
     parser.add_argument(
         "--song",
-        default=songs.names()[0] if songs.names() else "basement",
+        default=default,
         help="which song under songs/ (default: %(default)s)",
     )
 

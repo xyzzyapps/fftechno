@@ -22,7 +22,7 @@ import urllib.request
 from pathlib import Path
 
 from . import config as C
-from .md import rows
+from .md import tables
 from .proc import build_lock, ffmpeg
 
 MANIFEST = C.ROOT / "samples" / "manifest.md"
@@ -32,18 +32,45 @@ _CODECS = ("pcm_s16le", "pcm_f32le")
 
 
 def entries() -> list[dict[str, str]]:
-    """The manifest rows as dicts (``set``/``file``/``url``/``license``)."""
+    """The manifest rows as dicts (``set``/``file``/``url``/``license``/``seconds``).
+
+    ``seconds`` is optional and is only used by YouTube rows; it records how much
+    of the video to fetch from the URL's ``t=`` offset.
+    """
     if not MANIFEST.exists():
         raise SystemExit(f"missing {MANIFEST}")
     text = MANIFEST.read_text(encoding="utf-8")
-    found = rows(text, ["set", "file", "url", "license"])
-    if not found:
-        raise SystemExit("samples/manifest.md: no table with set|file|url|license")
+    found = None
+    for header, body in tables(text):
+        keys = [h.lower() for h in header]
+        if keys[:4] == ["set", "file", "url", "license"]:
+            found = (keys, body)
+            break
+    if found is None:
+        raise SystemExit(
+            "samples/manifest.md: no table with set|file|url|license headers"
+        )
+    keys, body = found
+    seconds_idx = keys.index("seconds") if "seconds" in keys else None
     out: list[dict[str, str]] = []
-    for set_, file, url, license_ in found:
+    for row in body:
+        if len(row) < 4:
+            raise SystemExit(f"samples/manifest.md: incomplete row '{' | '.join(row)}'")
+        set_, file, url, license_ = row[:4]
         if not (set_ and file and url):
             raise SystemExit(f"samples/manifest.md: incomplete row '{set_} {file}'")
-        out.append({"set": set_, "file": file, "url": url, "license": license_})
+        seconds = ""
+        if seconds_idx is not None and seconds_idx < len(row):
+            seconds = row[seconds_idx].strip()
+        out.append(
+            {
+                "set": set_,
+                "file": file,
+                "url": url,
+                "license": license_,
+                "seconds": seconds,
+            }
+        )
     return out
 
 
@@ -63,7 +90,7 @@ def _youtube_start(url: str) -> int:
     return int(match.group(1)) if match else 0
 
 
-def _fetch_youtube(url: str, dest: Path, seconds: int = 90) -> None:
+def _fetch_youtube(url: str, dest: Path, seconds: int) -> None:
     """Download *seconds* of a YouTube video's audio from its ``t=`` start.
 
     Used for sources that only exist on YouTube (the vinyl surface-noise rows).
@@ -105,7 +132,13 @@ def fetch(force: bool = False) -> list[Path]:
         dest.parent.mkdir(parents=True, exist_ok=True)
         print(f"fetch   samples/{entry['set']}/{entry['file']}")
         if _is_youtube(entry["url"]):
-            _fetch_youtube(entry["url"], dest)
+            raw = entry.get("seconds", "")
+            if not raw or raw == "-":
+                raise SystemExit(
+                    f"samples/manifest.md: YouTube row '{entry['file']}' "
+                    "needs a 'seconds' value"
+                )
+            _fetch_youtube(entry["url"], dest, int(raw))
         else:
             urllib.request.urlretrieve(entry["url"], dest)
         written.append(dest)

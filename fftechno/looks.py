@@ -65,11 +65,22 @@ class EdgeLook(Look):
 
     name = "edge"
     needs_matte = True
-    _EDGE = "edgedetect=low=0.08:high=0.25"
+    edge_low = 0.08
+    edge_high = 0.25
+
+    def configure(self, params: dict[str, str]) -> None:
+        """Apply the ``edgedetect`` thresholds from video.md."""
+        if "edge_low" in params:
+            self.edge_low = float(params["edge_low"])
+        if "edge_high" in params:
+            self.edge_high = float(params["edge_high"])
 
     def stack_filter(self, out_w: int, out_h: int) -> str:
         """Build the edgedetect filter for the matted, fitted frame."""
-        return f"[0:v]{fit(out_w, out_h)},{self._EDGE}[out]"
+        return (
+            f"[0:v]{fit(out_w, out_h)},"
+            f"edgedetect=low={self.edge_low:g}:high={self.edge_high:g}[out]"
+        )
 
 
 class PollockLook(Look):
@@ -78,16 +89,35 @@ class PollockLook(Look):
     name = "pollock"
     needs_matte = False
     accumulation = "trail"
+    blur = 1.5
+    edge_low = 0.08
+    edge_high = 0.30
+    rotate_a = 30.0
+    rotate_b = -35.0
+
+    def configure(self, params: dict[str, str]) -> None:
+        """Apply the blur, edge and rotation knobs from video.md."""
+        if "blur" in params:
+            self.blur = float(params["blur"])
+        if "edge_low" in params:
+            self.edge_low = float(params["edge_low"])
+        if "edge_high" in params:
+            self.edge_high = float(params["edge_high"])
+        if "rotate_a" in params:
+            self.rotate_a = float(params["rotate_a"])
+        if "rotate_b" in params:
+            self.rotate_b = float(params["rotate_b"])
 
     def _filter(self, out_w: int, out_h: int, accumulate: bool) -> str:
         """Build the crossed-edge painting filter, optionally accumulating."""
         head = (
-            f"[0:v]{fit(out_w, out_h)},gblur=sigma=1.5,"
-            f"edgedetect=low=0.08:high=0.30,split=3[a][b][c];"
-            f"[b]rotate=30*PI/180:ow=iw:oh=ih:fillcolor=black[r1];"
-            f"[c]rotate=-35*PI/180:ow=iw:oh=ih:fillcolor=black[r2];"
-            f"[a][r1]blend=all_mode=lighten[x1];"
-            f"[x1][r2]blend=all_mode=lighten[x2];"
+            f"[0:v]{fit(out_w, out_h)},gblur=sigma={self.blur:g},"
+            f"edgedetect=low={self.edge_low:g}:high={self.edge_high:g},"
+            "split=3[a][b][c];"
+            f"[b]rotate={self.rotate_a:g}*PI/180:ow=iw:oh=ih:fillcolor=black[r1];"
+            f"[c]rotate={self.rotate_b:g}*PI/180:ow=iw:oh=ih:fillcolor=black[r2];"
+            "[a][r1]blend=all_mode=lighten[x1];"
+            "[x1][r2]blend=all_mode=lighten[x2];"
         )
         if not accumulate:
             return head + "[x2]null[out]"
@@ -116,13 +146,22 @@ class OutlineLook(Look):
     emits = "sprites"
     top_margin = 70  # rows ignored at the top (e.g. a light truss)
     hair_gain = 1.15
+    blue_min = 70
+    blue_r = 25
+    blue_g = 15
 
     def configure(self, params: dict[str, str]) -> None:
-        """Apply ``top_margin`` and ``hair_gain`` overrides."""
+        """Apply top-margin, hair-gain and blue-key thresholds from video.md."""
         if "top_margin" in params:
             self.top_margin = int(params["top_margin"])
         if "hair_gain" in params:
             self.hair_gain = float(params["hair_gain"])
+        if "blue_min" in params:
+            self.blue_min = int(params["blue_min"])
+        if "blue_r" in params:
+            self.blue_r = int(params["blue_r"])
+        if "blue_g" in params:
+            self.blue_g = int(params["blue_g"])
 
     def stack_filter(self, out_w: int, out_h: int) -> str:  # pragma: no cover
         """Not used: outline emits RGB sprites instead of a grey stack."""
@@ -140,7 +179,9 @@ class OutlineLook(Look):
             fine[: self.top_margin] = False
             subj = fine & largest_component(fine, down=10, frac=0.55, dilate_px=2)
             outline = dilate(subj, 2) & ~subj
-            hair = _blue_mask(frame) & dilate(subj, 3)
+            hair = _blue_mask(frame, self.blue_min, self.blue_r, self.blue_g) & dilate(
+                subj, 3
+            )
             sprite = sprites[i]
             sprite[outline] = 255
             sprite[hair] = np.clip(
@@ -252,10 +293,12 @@ class PhotoLook(Look):
         return np.asarray(frames[:1]).copy()
 
 
-def _blue_mask(rgb: np.ndarray) -> np.ndarray:
+def _blue_mask(
+    rgb: np.ndarray, blue_min: int = 70, red_delta: int = 25, green_delta: int = 15
+) -> np.ndarray:
     """Chroma-key the (blue) hair: pixels clearly bluer than red/green."""
     r, g, b = (rgb[..., i].astype(np.int16) for i in range(3))
-    return (b > 70) & (b - r > 25) & (b - g > 15)
+    return (b > blue_min) & (b - r > red_delta) & (b - g > green_delta)
 
 
 LOOKS: dict[str, Look] = {

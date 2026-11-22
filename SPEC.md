@@ -86,7 +86,7 @@ Derived: `beat = 60/155 = 0.387097 s`, `step (16th) = 0.096774 s`,
               + girl_frames.npy  /  girl_sprites.npy + girl_pick.npy
               + logs/fx.json + logs/fx/<stem>.wav (gain-applied envelopes)
                            v
-              vspipe visualizer.vpy (paint + shader) -> ffmpeg -> techno_visualizer.mp4
+              vspipe fftechno/visualizer.vpy (paint + shader) -> ffmpeg -> techno_visualizer.mp4
 ```
 
 Sample-based songs replace the template branch with
@@ -158,7 +158,8 @@ Tables (all required unless noted):
   untouched rather than folded to a point.
 - **Effects** - `| effect | value |`; `reverb_send`, `reverb_hpf`, `reverb_wet`,
   `sidechain_threshold/ratio/attack/release`, `stereo_width`,
-  `bus_threshold/ratio/attack/release`.
+  `bus_threshold/ratio/attack/release`. Optional master overrides:
+  `master_eq_f`, `master_eq_g`, `master_eq_w`, `master_limiter`.
 - **Levels** - `| stem | level |`; fixed level for non-arranged stems (vox).
 
 Rules: the first section starts at bar 0; each next range starts where the previous
@@ -275,6 +276,10 @@ onto every phrase (about 0.65 s for Kitten, 0.15-0.29 s for flite), so `vocals.m
 can set `trim_lead: 1` to strip it before placement and have the phrase start
 exactly on its time (it has no other effect on the phrase); `minimal`'s parked
 "tick" count-in uses it, and it fixes the same lateness in any song.
+`vocals.md` may also have a `## Parameters` table (`| key | value |`) for the voice
+treatment: `pitch`, `speed`, `highpass`, `mid_f`, `mid_g`, `low_f`, `low_g`,
+`drive`, `echo`, `lowpass`, `volume`, `trim_db` and `trim_silence`. The defaults
+live in `vox.VOICE_DEFAULTS`; the shipped songs use them unchanged.
 The stem is mixed through the `Levels` table like any other (`vox`), so its timing
 is free of the section automation. A song with no `vox` in its Stems table has no
 vocal: `audio.build` also deletes a stale `lyrics.json`, so the video never draws
@@ -311,12 +316,16 @@ Two passes: `loudnorm` in measurement mode, then a linear apply.
 ```
 [0]loudnorm=I=-13.0:TP=-1.0:LRA=11:measured_I=..:measured_TP=..:measured_LRA=..
    :measured_thresh=..:offset=..:linear=true,
-   alimiter=limit=0.88:level=disabled,
-   equalizer=f=9000:t=h:w=0.7:g=1.5,
-   aresample=48000:out_sample_fmt=s16:dither_method=triangular_hp,
+   alimiter=limit=<master_limiter>:level=disabled,
+   equalizer=f=<master_eq_f>:t=h:w=<master_eq_w>:g=<master_eq_g>,
+   aresample=<master_sr>:out_sample_fmt=s16:dither_method=triangular_hp,
    aformat=sample_fmts=s16:channel_layouts=stereo
 ```
 
+The defaults are `config` constants (`MASTER_SR`, `MASTER_EQ_F`, `MASTER_EQ_G`,
+`MASTER_EQ_W`, `LIMITER_CEILING`). A song can override the master EQ and limiter in
+its Effects table with `master_eq_f`, `master_eq_g`, `master_eq_w` and
+`master_limiter`.
 `alimiter` must use `level=disabled` (its auto-level would boost over the ceiling).
 With `--safe` (off by default) a second, stricter `alimiter` (`limit=0.5`, about
 -6 dBFS) is inserted for ear protection.
@@ -336,7 +345,7 @@ times one bar (`240/bpm` seconds): 240 s for `basement`, `hardgroove`, `triphop`
 delivered `triphop_samples` cut trims the first two bars (5.714286 s), so its
 master and YouTube video are 222.857 s. The master targets -13 LUFS and -1 dBTP.
 
-## 12. Video - `visualizer.vpy`
+## 12. Video - `fftechno/visualizer.vpy`
 
 VapourSynth + vs-placebo. The picture is produced by a **source** (`Look`) and an
 ordered **effect chain** (`fftechno/effects.py`, see 12.5). A small piece of
@@ -350,6 +359,7 @@ single frozen frame.
 
 Environment inputs: `FFTECHNO_AUDIO` (the mastered WAV), `FFTECHNO_W` / `FFTECHNO_H`
 (the output size - a song can be vertical, e.g. `size: 1080x1920` in `video.md`),
+`FFTECHNO_FPS` (the frame rate; defaults to `config.VIDEO_FPS`),
 `FFTECHNO_GIRL_FRAMES` (grey frame stack - edge/pollock), `FFTECHNO_GIRL_SPRITES` +
 `FFTECHNO_GIRL_PICK` (RGB sprites + per-frame index - outline/photo),
 `FFTECHNO_POLLOCK` (paint-accumulation mode), `FFTECHNO_FX` (the effect-chain JSON),
@@ -361,11 +371,14 @@ when present), `FFTECHNO_ROOT` (so the script can import `fftechno.effects`) and
 The output size drives everything downstream: the picture-data frame is half the
 output (`GW, GH = W/2, H/2`), the audio data strip sits in its top 4 rows, the 720p
 preview keeps the aspect (720x1280 when vertical) and the shader's strip row
-coordinates are built for that height (`assemble_shader(..., height)`).
+coordinates are built for that height (`assemble_shader(..., height, fps)`). The
+same FPS is passed into the shader, so its clock and the visualizer cannot drift.
 
 ### 12.1 Girl pipeline - `fftechno/girl.py` (+ `fftechno/matte.py`)
 
-1. `source_clip()`: the configured `video.source`, or the first video in `ascii/`.
+1. `source_clip()`: the configured `video.source`; otherwise the first video in
+   `ascii/` (or, for `photo`, the first image). An empty `source:` is not treated
+   as the repo root.
 2. Decode `video.crop_start .. + video.crop_duration` (default 2.0 s..5.0 s) at
    native size/fps. A still image has no timeline, so it is decoded once.
 3. Per look:
@@ -448,7 +461,9 @@ is `0.00`. The visualizer loads those as per-frame RMS envelopes
 
 `squares` draws one white outline per instrument - concentric, largest outermost -
 and drives a single parameter each (`ROLES`): size, vertical drift, line thickness,
-rotation, a horizontal knock or a brightness flash. Instruments listed in `circles`
+rotation, a horizontal knock or a brightness flash. `roles` overrides the mapping
+(`kick:thickness|snare:knock|...`) and `order` sets the outer-to-inner instrument
+order; both default to the built-in techno mapping. Instruments listed in `circles`
 (`rim` by default) are drawn as a **ring** instead of a square, so the rim shot is a
 circle at the centre of the pattern; a ring pings by growing, since a brightness
 blink would need it to sit below white. `halves` gives the sizes explicitly, in
@@ -461,6 +476,11 @@ never dimmed** - the drawn level is `level` (1.0 = pure white). A square can nev
 grow past the frame (a cap derived from the smaller dimension), and each shape is
 rasterised inside its own bounding box, so the cost is independent of the frame
 area.
+
+**Look thresholds.** The look-specific constants are also `video.md` parameters:
+`edge_low` / `edge_high` for `edge`; `blur`, `edge_low`, `edge_high`, `rotate_a`
+and `rotate_b` for `pollock`; and `top_margin`, `hair_gain`, `blue_min`, `blue_r`
+and `blue_g` for `outline`. Their defaults preserve the shipped renders.
 
 **Picture framing** (`photo`). The still-photo source can either `fit` (keep the
 whole image, letterbox on black - good for a landscape frame) or `fill` (scale to
@@ -499,8 +519,9 @@ ghosts, a white core and grain), centred. `cover_v1.jpg` is the clean art;
 `docs/ffmpeg_cheatsheet.png` is a 1080x1350 social card listing the synthesis,
 sequencing, filter, sampler, mastering, video and check techniques this project
 uses. `docs/make_cheatsheet.py` draws it with Pillow and the Windows system fonts
-(Times New Roman for the title, Consolas for the code). Both the generator and the
-PNG are tracked; the image is linked at the top of the README. Regenerate with:
+(Times New Roman for the title, Consolas for the code); `FFTECHNO_FONTS` points at a
+different font directory. Both the generator and the PNG are tracked; the image is
+linked at the top of the README. Regenerate with:
 
 ```powershell
 .venv\Scripts\python docs\make_cheatsheet.py
@@ -521,7 +542,7 @@ PNG are tracked; the image is linked at the top of the README. Regenerate with:
 | Delivered trip-hop master | `ebur128` / `ffprobe` | 222.857 s, -13.0 LUFS, -1.2 dBTP |
 | Cover video | `ffprobe` | 1920x1080, 30 fps, AAC 320k, 12,984,773 bytes |
 | Cheat sheet | Pillow render | 1080x1350 PNG |
-| Code audit | AST docstring scan + vulture | 186 functions, 0 missing; no dead code at 60% confidence |
+| Code audit | AST docstring scan + vulture | 190 functions, 0 missing; no dead code at 60% confidence |
 | Lint / format | pyflakes, ruff, black | clean |
 
 ## 14. Reproducibility
@@ -561,8 +582,13 @@ guarantees a single writer.
     No model files or network; voices `slt`, `kal`, `kal16`, `rms`, `awb`.
 - Samples: network access for the first fetch; `yt-dlp` on `PATH` for manifest rows
   whose URL is a YouTube watch/short link (the vinyl row).
+- Resource overrides: `FFTECHNO_VSPIPE`, `FFTECHNO_RVM_MODEL`, `FFTECHNO_PIPER`,
+  `FFTECHNO_PIPER_VOICES`, `FFTECHNO_KITTEN_MODEL`, `FFTECHNO_KITTEN_CACHE`,
+  `FFTECHNO_FONTS`, `FFTECHNO_FONT_SERIF`, `FFTECHNO_FONT_MONO` and
+  `FFTECHNO_FONT_MONO_BOLD` point the build at non-default binaries, models or
+  fonts.
 - Docs: Pillow plus the system Times New Roman / Consolas fonts, only to regenerate
-  `docs/ffmpeg_cheatsheet.png`.
+  `docs/ffmpeg_cheatsheet.png`; `FFTECHNO_FONTS` selects a different font directory.
 - Dev: `black`, `pyflakes`, `ruff`; `vulture` was used for the one-off dead-code
   audit and is not a runtime dependency.
 
@@ -589,7 +615,7 @@ guarantees a single writer.
 - **How do I make a clean verification build?** `python -m fftechno audio --song S
   --out out2` writes `out2/S/` and leaves `output/` untouched.
 - **A YouTube sample fails?** Install `yt-dlp` and check that the URL still has its
-  `t=` offset; the fetch is 90 s from that point.
+  `t=` offset; the fetch length comes from that row's `seconds` column.
 - **Noncommercial?** Yes - PolyForm Noncommercial 1.0.0 (`LICENSE.md`). The
   YouTube-sourced vinyl row is not CC-licensed; its URL is in the manifest and it is
   used noncommercially.
@@ -631,12 +657,11 @@ templates/*.txt              synth schematics: the techno set, its variants
 filters/<name>/*.txt         generated graphs + vox.txt (shared output, even with --out)
 fftechno/                    config, md, song, looks, effects, proc (build lock),
                              audio, synth, sampler, samples, arrangement, vox, girl,
-                             matte, video, cli
+                             matte, video, cli, visualizer.vpy
 samples/                     manifest.md (tracked) + downloaded sets (gitignored):
                              triphop_kit/, breaks/, vinyl/, stoner_kit/
-visualizer.vpy               the VapourSynth + GLSL video
-pyproject.toml LICENSE.md README.md SPEC.md TODO.md AEVAL_TUTORIAL.md
-                             AEVAL_TUTORIAL.md (the aevalsrc/aeval guide)
+pyproject.toml LICENSE.md README.md SPEC.md TODO.md
+docs/AEVAL_TUTORIAL.md       the aevalsrc/aeval guide
 docs/ffmpeg_cheatsheet.png   the one-page technique card (linked from README)
 docs/make_cheatsheet.py      its generator (Pillow + system fonts, render-only)
 output/<name>/               techno*.wav, techno_visualizer*.mp4, girl_loop*.mp4,
@@ -685,7 +710,8 @@ only renders when `vox` is in the song's Stems table, and `audio.build` drops a
 stale `lyrics.json` so the video cannot draw a voice that is not in the mix. Its
 video is **1920x1080** (no `size:` line). The still photo is framed with `focus`
 so the subject's nose sits at the centre of the pattern, with the `squares, grain`
-chain. `triphop` (84 BPM, 84 bars = 4:00, instrumental, audio only) uses kick,
+chain; its source is the first image in `ascii/` unless `video.md` names one. The
+image itself is not tracked. `triphop` (84 BPM, 84 bars = 4:00, instrumental, audio only) uses kick,
 brk, roll, sub, ep, strings, bell, stab, horn, rise and vinyl. The side-chain key
 is kick and the low bus is sub. The master on disk is `output/triphop/techno_v4.wav`.
 `triphop_beat` is an 88 BPM, 8-bar scratch (kick, break, bass), not the 4-minute song.
@@ -749,7 +775,7 @@ Four are registered: `edge`, `pollock`, `outline`, `photo`. Adding a look = one
 subclass (and, if it needs knobs, a `| name | key | value |` row in a song's
 `video.md`).
 
-`templates/`, `filters/<song>/`, `visualizer.vpy` and the models in `tools/` are
+`templates/`, `filters/<song>/`, `fftechno/visualizer.vpy` and the models in `tools/` are
 shared across every song.
 
 ## 21. Sample-based songs - `samples/` + `fftechno/sampler.py`
@@ -758,7 +784,9 @@ A song can make its sound from **audio files** instead of `aevalsrc` oscillators
 section is the whole of the sample support.
 
 **The store.** `samples/manifest.md` (tracked) lists every sample as
-`| set | file | url | license |`. `python -m fftechno samples` downloads the missing
+`| set | file | url | license | seconds |`. `seconds` is required for YouTube rows
+and records the fetch window from the URL's `t=` offset; other rows can leave it
+blank. `python -m fftechno samples` downloads the missing
 files to `samples/<set>/<file>` and normalises each to a 48 kHz PCM WAV (which also
 removes the malformed trailing packet some 24-bit sources carry - the cause of the
 benign `Invalid PCM packet` log line). The downloaded files are **not** committed
@@ -836,10 +864,11 @@ and uses a 2-bar, 16-hit riff:
 ## 22. Deliverables and audit
 
 **Tracked documentation.** `README.md` is the practical guide (setup, commands,
-editing, samples, video, troubleshooting). `SPEC.md` is this SRS. `AEVAL_TUTORIAL.md`
-is the from-scratch `aevalsrc`/`aeval` guide. `TODO.md` is the open-work list only;
-the design history lives in section 23. `docs/ffmpeg_cheatsheet.png`
-and its generator are tracked because the card is embedded in the README.
+editing, samples, video, troubleshooting). `SPEC.md` is this SRS.
+`docs/AEVAL_TUTORIAL.md` is the from-scratch `aevalsrc`/`aeval` guide. `TODO.md` is
+the open-work list only; the design history lives in section 23.
+`docs/ffmpeg_cheatsheet.png` and its generator are tracked because the card is
+embedded in the README.
 
 **Rendered deliverables.** `output/` is gitignored. The current trip-hop assets are
 `output/triphop_samples/techno_v28.wav` (full 228.571 s render),
@@ -857,14 +886,23 @@ nine-song run is the first open item in `TODO.md`.
 
 **Code audit (this pass).**
 
-- Every Python function and method has a docstring: 186 functions, 0 missing
-  (AST scan over `fftechno/*.py`, `visualizer.vpy` and `docs/make_cheatsheet.py`).
+- Every Python function and method has a docstring: 190 functions, 0 missing
+  (AST scan over `fftechno/*.py`, `fftechno/visualizer.vpy` and `docs/make_cheatsheet.py`).
 - `pyflakes`, `ruff` and `black --check` are clean; `vulture` reports no dead code
   at 60% confidence.
 - Removed stale code: the unused `Look.decode` attribute (the pipeline uses
   `decode_filter`) and the unused `ascii_for_block` cache helper in the visualizer.
 - Fixed the stale `--tts` error message (it now lists `flite`) and the stale
   `pyproject.toml` / package descriptions.
+- Removed the remaining hardcoded couplings: video FPS is passed through
+  `FFTECHNO_FPS` into both the visualizer and the shader; the package version is
+  dynamic from `fftechno.__version__` (0.3.0, with `pyproject.toml` reading it and
+  `[tool.setuptools] packages = ["fftechno"]` scoping wheel builds); YouTube fetch
+  length comes from the manifest `seconds` column; voice treatment, master
+  EQ/limiter, video encode settings, square `roles`/`order` and look thresholds are
+  configurable rather than fixed in code. VapourSynth, RVM, Piper, Kitten and the
+  cheat-sheet fonts also have `FFTECHNO_*` path overrides; the `photo` look resolves
+  its source from `video.source` or the first image in `ascii/`.
 - The only known repository-level leftover is the separate
   `.worktrees/aeval` git worktree (branch `aeval-split`), which is not part of the
   main build.

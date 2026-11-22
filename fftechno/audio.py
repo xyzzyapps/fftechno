@@ -36,7 +36,7 @@ def make_ir(song: Song) -> None:
             "-f",
             "lavfi",
             "-i",
-            f"aevalsrc='{expr}':s=48000:d={seconds:g}",
+            f"aevalsrc='{expr}':s={C.MASTER_SR}:d={seconds:g}",
             "-c:a",
             "pcm_f32le",
             song.ir,
@@ -126,18 +126,25 @@ def master(song: Song, safe: bool = False) -> Path:
     """Two-pass linear loudness normalisation + limiter + dither -> techno.wav.
 
     ``safe=True`` adds an extra, stricter limiter (ear protection; OFF by default).
+    The master EQ and limiter can be overridden per song with ``master_eq_f``,
+    ``master_eq_g``, ``master_eq_w`` and ``master_limiter`` in the Effects table.
     Returns the path actually written (a versioned name if the target exists)."""
     m = _measure(song.mix_pre)
+    fx = song.arrangement().effects
+    eq_f = float(fx.get("master_eq_f", C.MASTER_EQ_F))
+    eq_g = float(fx.get("master_eq_g", C.MASTER_EQ_G))
+    eq_w = float(fx.get("master_eq_w", C.MASTER_EQ_W))
+    limiter = float(fx.get("master_limiter", C.LIMITER_CEILING))
     guard = f"alimiter=limit={C.SAFE_CEILING:g}:level=disabled," if safe else ""
     graph = (
         f"[0]loudnorm=I={C.LOUDNESS_I}:TP={C.LOUDNESS_TP}:LRA={C.LOUDNESS_LRA}"
         f":measured_I={m['input_i']}:measured_TP={m['input_tp']}"
         f":measured_LRA={m['input_lra']}:measured_thresh={m['input_thresh']}"
         f":offset={m['target_offset']}:linear=true:print_format=summary,"
-        f"alimiter=limit={C.LIMITER_CEILING}:level=disabled,"
+        f"alimiter=limit={limiter:g}:level=disabled,"
         + guard
-        + "equalizer=f=9000:t=h:w=0.7:g=1.5,"
-        "aresample=48000:out_sample_fmt=s16:dither_method=triangular_hp,"
+        + f"equalizer=f={eq_f:g}:t=h:w={eq_w:g}:g={eq_g:g},"
+        f"aresample={C.MASTER_SR}:out_sample_fmt=s16:dither_method=triangular_hp,"
         "aformat=sample_fmts=s16:channel_layouts=stereo[out]"
     )
     out = C.unique_path(song.audio)

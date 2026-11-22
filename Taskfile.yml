@@ -7,8 +7,8 @@ tasks:
   lint:
     desc: pyflakes + ruff + black --check
     cmds:
-      - '{{.PY}} -m pyflakes fftechno visualizer.vpy'
-      - '{{.PY}} -m ruff check fftechno visualizer.vpy'
+      - '{{.PY}} -m pyflakes fftechno fftechno/visualizer.vpy'
+      - '{{.PY}} -m ruff check fftechno fftechno/visualizer.vpy'
       - '{{.PY}} -m black --check fftechno'
 
   format:

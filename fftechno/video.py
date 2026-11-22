@@ -110,6 +110,7 @@ def _render_and_mux(
         FFTECHNO_AUDIO=str(audio),
         FFTECHNO_W=str(frame.width),
         FFTECHNO_H=str(frame.height),
+        FFTECHNO_FPS=str(C.VIDEO_FPS),
         FFTECHNO_GIRL_FRAMES=str(song.girl_frames),
         FFTECHNO_GIRL_SPRITES=sprites,
         FFTECHNO_GIRL_PICK=pick,
@@ -145,17 +146,17 @@ def _render_and_mux(
                 "-c:v",
                 "libx264",
                 "-preset",
-                "slow",
+                C.VIDEO_PRESET,
                 "-crf",
-                "20",
+                str(C.VIDEO_CRF),
                 "-tune",
-                "film",
+                C.VIDEO_TUNE,
                 "-pix_fmt",
                 "yuv420p",
                 "-c:a",
                 "aac",
                 "-b:a",
-                "192k",
+                C.VIDEO_AUDIO_BITRATE,
                 "-shortest",
                 "-movflags",
                 "+faststart",
@@ -186,13 +187,13 @@ def _preview(song: Song, master: Path) -> Path:
             "-c:v",
             "libx264",
             "-preset",
-            "medium",
+            C.PREVIEW_PRESET,
             "-crf",
-            "22",
+            str(C.PREVIEW_CRF),
             "-c:a",
             "aac",
             "-b:a",
-            "160k",
+            C.PREVIEW_AUDIO_BITRATE,
             "-movflags",
             "+faststart",
             str(out),
@@ -206,7 +207,7 @@ def re_level(
     song: Song,
     audio: Path | None = None,
     targets: tuple[Path, ...] | None = None,
-    ceiling: float = 0.70,
+    ceiling: float = C.BOOST_CEILING,
 ) -> None:
     """Re-encode MP4 audio at *factor* gain (video copied), limiter-bounded."""
     audio = audio or song.audio
@@ -247,7 +248,7 @@ def re_level(
                 "-c:a",
                 "aac",
                 "-b:a",
-                "192k",
+                C.VIDEO_AUDIO_BITRATE,
                 "-shortest",
                 "-movflags",
                 "+faststart",
@@ -291,7 +292,7 @@ def swap_audio(
                 "-c:a",
                 "aac",
                 "-b:a",
-                "192k",
+                C.VIDEO_AUDIO_BITRATE,
                 "-shortest",
                 "-movflags",
                 "+faststart",
@@ -302,14 +303,14 @@ def swap_audio(
         print(f"swapped audio: {target}")
 
 
-def _replace(src: Path, dst: Path, attempts: int = 20) -> None:
+def _replace(src: Path, dst: Path, attempts: int = C.IO_RETRIES) -> None:
     """Replace *dst* with *src*, retrying through transient Windows file locks."""
     for _ in range(attempts):
         try:
             src.replace(dst)
             return
         except PermissionError:
-            time.sleep(0.5)
+            time.sleep(C.IO_RETRY_SECONDS)
     raise SystemExit(f"could not replace {dst} (file locked by another process?)")
 
 

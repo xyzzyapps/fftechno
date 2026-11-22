@@ -18,22 +18,45 @@ from .song import Song
 
 _KITTEN = None  # cached KittenTTS model (loading is slow)
 
-# Remove the silence the TTS pads onto the front of a phrase, so it can be placed
-# exactly on its time (see `placement_graph`).
-_TRIM_LEAD = "silenceremove=start_periods=1:start_threshold=-45dB:start_silence=0.005"
+# Voice treatment defaults; a song's vocals.md `## Parameters` table overrides them.
+VOICE_DEFAULTS: dict[str, str] = {
+    "pitch": "1.09",  # playback-rate ratio; atempo restores the duration
+    "speed": "1.15",  # Kitten TTS speaking rate
+    "highpass": "140",
+    "mid_f": "2400",
+    "mid_g": "3",
+    "low_f": "350",
+    "low_g": "-3",
+    "drive": "0.9",
+    "echo": "0.8:0.7:55|110:0.28|0.14",
+    "lowpass": "8500",
+    "volume": "2.5",
+    "trim_db": "-45",
+    "trim_silence": "0.005",
+}
 
 
-def _treat(sr: int) -> str:
-    """Voice shaping for a source at *sr* Hz: ~ +1.5 semitones (younger /
-    feminine, duration preserved with atempo), a mid-forward tone and a hint of
-    grit for a "punk teenager" feel."""
-    ratio = 1.09
+def _voice(params: dict[str, str] | None, key: str) -> str:
+    """Return one voice parameter, falling back to ``VOICE_DEFAULTS``."""
+    return (params or {}).get(key, VOICE_DEFAULTS[key])
+
+
+def _treat(sr: int, params: dict[str, str] | None = None) -> str:
+    """Voice shaping for a source at *sr* Hz.
+
+    The defaults give ~ +1.5 semitones (younger/feminine, duration preserved with
+    atempo), a mid-forward tone and a hint of grit. Every value is overridable from
+    the song's ``vocals.md`` ``## Parameters`` table.
+    """
+    ratio = float(_voice(params, "pitch"))
     return (
         f"asetrate={int(sr * ratio)},aresample=48000,atempo={1 / ratio:.4f},"
-        "highpass=f=140,"
-        "equalizer=f=2400:t=q:w=1.2:g=3,equalizer=f=350:t=q:w=1:g=-3,"
-        "asoftclip=type=tanh:threshold=0.9,"
-        "aecho=0.8:0.7:55|110:0.28|0.14,lowpass=f=8500,volume=2.5"
+        f"highpass=f={_voice(params, 'highpass')},"
+        f"equalizer=f={_voice(params, 'mid_f')}:t=q:w=1.2:g={_voice(params, 'mid_g')},"
+        f"equalizer=f={_voice(params, 'low_f')}:t=q:w=1:g={_voice(params, 'low_g')},"
+        f"asoftclip=type=tanh:threshold={_voice(params, 'drive')},"
+        f"aecho={_voice(params, 'echo')},"
+        f"lowpass=f={_voice(params, 'lowpass')},volume={_voice(params, 'volume')}"
     )
 
 
@@ -47,16 +70,20 @@ def _kitten_model():
     return _KITTEN
 
 
-def _say_kitten(text: str, wav, voice: str) -> int:
+def _say_kitten(
+    text: str, wav, voice: str, params: dict[str, str] | None = None
+) -> int:
     """Synthesise *text* with Kitten TTS and write a wav; returns its rate."""
     import soundfile as sf
 
-    audio = _kitten_model().generate(text, voice=voice, speed=1.15)
+    audio = _kitten_model().generate(
+        text, voice=voice, speed=float(_voice(params, "speed"))
+    )
     sf.write(str(wav), audio, C.KITTEN_SR)
     return C.KITTEN_SR
 
 
-def _say_piper(text: str, wav, voice: str) -> int:
+def _say_piper(text: str, wav, voice: str, params: dict[str, str] | None = None) -> int:
     """Synthesise *text* with a Piper voice and write a wav; returns its rate."""
     model = C.PIPER_VOICES / f"{voice}.onnx"
     if not C.PIPER.exists() or not model.exists():
@@ -91,7 +118,7 @@ def _wav_rate(path) -> int:
     return int(out)
 
 
-def _say_flite(text: str, wav, voice: str) -> int:
+def _say_flite(text: str, wav, voice: str, params: dict[str, str] | None = None) -> int:
     """FFmpeg's built-in TTS (libflite) - no model files, no network.
 
     Voices: ``slt`` (female), ``kal`` / ``kal16`` (male, 8 kHz), ``rms``, ``awb``.
@@ -122,16 +149,26 @@ _ENGINES = {"kitten": _say_kitten, "piper": _say_piper, "flite": _say_flite}
 
 
 def placement_graph(
-    lines: list[tuple[str, float]], sr: int, duration: float, trim_lead: bool = False
+    lines: list[tuple[str, float]],
+    sr: int,
+    duration: float,
+    trim_lead: bool = False,
+    params: dict[str, str] | None = None,
 ) -> str:
     """The ``-filter_complex`` body placing each line (one input per line).
 
     The TTS pads leading silence onto every phrase (about 0.65 s for Kitten), so
     without *trim_lead* a phrase sounds that much after its ``time``. With it the
-    silence is removed first, so the phrase starts exactly on its time.
+    silence is removed first, so the phrase starts exactly on its time. *params*
+    comes from the song's ``vocals.md`` and drives the treatment.
     """
-    treat = _treat(sr)
-    head = f"{_TRIM_LEAD}," if trim_lead else ""
+    treat = _treat(sr, params)
+    trim = (
+        "silenceremove=start_periods=1:"
+        f"start_threshold={_voice(params, 'trim_db')}dB:"
+        f"start_silence={_voice(params, 'trim_silence')}"
+    )
+    head = f"{trim}," if trim_lead else ""
     parts = [
         f"[{k}]{head}{treat},adelay={round(t * 1000)}:all=1[d{k}]"
         for k, (_text, t) in enumerate(lines)
@@ -171,13 +208,15 @@ def render(song: Song, engine: str | None = None) -> None:
     sr = C.KITTEN_SR
     for i, text in enumerate(dict.fromkeys(t for t, _ in vocals.lines)):
         wav = song.logs / f"vox_{i}.wav"
-        sr = say(text, wav, vocals.voice)
+        sr = say(text, wav, vocals.voice, vocals.params)
         wavs[text] = wav
 
     inputs: list[str] = []
     for text, _t in vocals.lines:
         inputs += ["-i", str(wavs[text])]
-    graph = placement_graph(vocals.lines, sr, song.duration, vocals.trim_lead)
+    graph = placement_graph(
+        vocals.lines, sr, song.duration, vocals.trim_lead, vocals.params
+    )
     (song.filters / "vox.txt").write_text(graph, encoding="utf-8")
     ffmpeg(
         [

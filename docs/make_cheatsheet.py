@@ -9,13 +9,27 @@ code) and Pillow, which is a render-only dependency.
     -> docs/ffmpeg_cheatsheet.png
 """
 
+import os
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "docs" / "ffmpeg_cheatsheet.png"
-FONTS = Path("C:/Windows/Fonts")
+FONTS = Path(os.environ.get("FFTECHNO_FONTS", "C:/Windows/Fonts"))
+SERIF = os.environ.get("FFTECHNO_FONT_SERIF", "timesbd.ttf")
+MONO = os.environ.get("FFTECHNO_FONT_MONO", "consola.ttf")
+MONO_BOLD = os.environ.get("FFTECHNO_FONT_MONO_BOLD", "consolab.ttf")
+
+
+def _font(name: str, size: int) -> ImageFont.FreeTypeFont:
+    """Load a system font, with a clear error when ``FFTECHNO_FONTS`` is wrong."""
+    path = FONTS / name
+    try:
+        return ImageFont.truetype(str(path), size)
+    except OSError as exc:
+        raise SystemExit(f"font not found: {path}; set FFTECHNO_FONTS") from exc
+
 
 W, H = 1080, 1350
 BG = (10, 13, 18)
@@ -26,11 +40,11 @@ ACCENT = (126, 231, 135)
 RULE = (31, 38, 48)
 BORDER = (26, 32, 42)
 
-TITLE = ImageFont.truetype(str(FONTS / "timesbd.ttf"), 78)
-SUBTITLE = ImageFont.truetype(str(FONTS / "consola.ttf"), 22)
-HEADER = ImageFont.truetype(str(FONTS / "consolab.ttf"), 24)
-BODY = ImageFont.truetype(str(FONTS / "consola.ttf"), 17)
-FOOT = ImageFont.truetype(str(FONTS / "consola.ttf"), 16)
+TITLE = _font(SERIF, 78)
+SUBTITLE = _font(MONO, 22)
+HEADER = _font(MONO_BOLD, 24)
+BODY = _font(MONO, 17)
+FOOT = _font(MONO, 16)
 
 X1, X2 = 40, 560
 COLW = 480

@@ -12,7 +12,7 @@ no DAW, no plugin and no MIDI.
 - **Sample songs** play real audio files through an `amovie` sampler.
 - **Every build is reproducible** and every render is kept (`techno_v2.wav`, ...).
 
-[Example songs](#example-songs) · [Specification](SPEC.md) · [ffmpeg synthesis tutorial](AEVAL_TUTORIAL.md)
+[Example songs](#example-songs) · [Specification](SPEC.md) · [ffmpeg synthesis tutorial](docs/AEVAL_TUTORIAL.md)
 
 ## Quick start
 
@@ -68,7 +68,8 @@ no video.
 
 ## Commands
 
-All commands run from the repo root. `S` is a folder name under `songs/`.
+All commands run from the repo root. `S` is a folder name under `songs/`; the
+default is `basement` (`config.DEFAULT_SONG`).
 
 | Command | What it does | Writes |
 |---------|--------------|--------|
@@ -114,7 +115,7 @@ python -m fftechno audio --song minimal --out out2
 songs/<song>/
   song.md       arrangement and mix: tempo, length, sections, pan, effects
   sounds.md     instrument recipes: one row per sound, plus optional samplers
-  vocals.md     optional TTS engine, voice and phrase times (also the lyrics)
+  vocals.md     optional TTS engine, voice, treatment parameters and phrase times
   video.md      optional picture source, size, look and effect chain
 
 templates/      one ffmpeg schematic per instrument, with {{placeholders}}
@@ -170,6 +171,9 @@ are 16 steps per bar (`1` = hit, `0` = rest). Notes are frequencies in Hz.
 | add or remove reverb | `song.md` | the `Effects` table (`reverb_send`) |
 | make the reverb longer | `song.md` | `reverb_seconds: 5.5` (IR length; default 2.2) |
 | duck the bass under the kick | `song.md` | the `Effects` table (`sidechain_*`) |
+| change the master EQ/limiter | `song.md` | `master_eq_f`, `master_eq_g`, `master_eq_w`, `master_limiter` |
+| change the voice treatment | `vocals.md` | optional `## Parameters` table (`pitch`, `speed`, `echo`, `volume`, ...) |
+| remap the squares | `video.md` | `roles` (`kick:thickness\|...`) and `order` |
 | add an instrument | `templates/` + `sounds.md` | new template, new row, then `Stems`, `Pan` and `Boosts`/`Sections` |
 | change the visual effects | `songs/<song>/video.md` | the `effects:` line and the `## Parameters` table |
 
@@ -186,10 +190,11 @@ python -m fftechno audio --song triphop_samples
 ffplay output/triphop_samples/techno_v29.wav
 ```
 
-`samples/manifest.md` (tracked) lists every file with its URL and licence. The wavs
-are not committed, so a clone reproduces them from the manifest. YouTube rows are
-fetched with `yt-dlp` (90 s from the URL's `t=` offset) and are **not** CC-licensed;
-the source URL is recorded and they are used noncommercially.
+`samples/manifest.md` (tracked) lists every file with its URL, licence and, for
+YouTube rows, the number of seconds to fetch. The wavs are not committed, so a clone
+reproduces them from the manifest. YouTube rows are fetched with `yt-dlp` from the
+URL's `t=` offset and are **not** CC-licensed; the source URL is recorded and they are
+used noncommercially.
 
 A song declares its samples in a `## Samplers` table in `sounds.md`:
 
@@ -221,7 +226,6 @@ bars and is `techno_v29.wav` (222.857 s, -13.0 LUFS, -1.2 dBTP).
 `video.md` controls the picture:
 
 ```markdown
-source: Gemini_Generated_Image_51i77351i77351i7.png
 look: photo
 size: 1080x1920      # optional; default 1920x1080
 effects: squares, grain
@@ -232,6 +236,9 @@ effects: squares, grain
 | squares | thickness | 2     |
 | grain   | amount    | 0.035 |
 ```
+
+For `photo`, the first image in `ascii/` is used unless `source:` names another
+file. For the other looks, the first video in `ascii/` is used.
 
 | Look | What it draws |
 |------|---------------|
@@ -250,7 +257,9 @@ effects: squares, grain
 
 A song with no `effects:` line gets `kick_flash, vignette, grain, kick_glitch`. A song
 with no `video.md` is audio only. The default is 1920x1080 at 30 fps; `size:
-1080x1920` is the 9:16 shape for Reels, Shorts and X.
+1080x1920` is the 9:16 shape for Reels, Shorts and X. Look and effect knobs share the
+`## Parameters` table; `squares` also accepts `roles` and `order`, and the look
+thresholds (`edge_low`, `edge_high`, `blur`, `blue_min`, ...) are set there too.
 
 ### Cover video (the YouTube cut)
 
@@ -275,12 +284,10 @@ glitch, centred. `cover_v1.jpg` is the clean version; `cover.jpg` is the glitche
 songs/<name>/      one folder per track
 templates/         one synth schematic per instrument
 filters/<name>/    generated ffmpeg graphs
-fftechno/          the Python build tooling
+fftechno/          the Python build tooling, including visualizer.vpy
 samples/           manifest.md (tracked) + downloaded sample sets (not committed)
-visualizer.vpy     the VapourSynth + GLSL video
 output/<name>/     renders, stems and logs (not committed)
-out2/<name>/       optional clean audio-only builds via --out (not committed)
-docs/              the cheat sheet PNG and its generator
+docs/              the cheat sheet, its generator and the aevalsrc tutorial
 ascii/             the source clip for the dancing-girl looks
 tools/             RVM model, Kitten/Piper voices (optional)
 ```
@@ -294,9 +301,13 @@ tools/             RVM model, Kitten/Piper voices (optional)
   model.
 - **Voice:** one local engine - Kitten TTS (default), Piper in `tools/piper/`, or
   ffmpeg's built-in `flite` (no model files, no network).
+- **Tool/model paths:** `FFTECHNO_VSPIPE`, `FFTECHNO_RVM_MODEL`, `FFTECHNO_PIPER`,
+  `FFTECHNO_PIPER_VOICES`, `FFTECHNO_KITTEN_MODEL` and `FFTECHNO_KITTEN_CACHE`
+  override the defaults.
 - **Samples:** network access; `yt-dlp` on `PATH` for YouTube rows.
 - **Cheat sheet:** Pillow plus the system Times New Roman / Consolas fonts. This is
-  only needed to regenerate `docs/ffmpeg_cheatsheet.png`.
+  only needed to regenerate `docs/ffmpeg_cheatsheet.png`; `FFTECHNO_FONTS` points at
+  a different font directory.
 
 ## Troubleshooting
 
@@ -314,10 +325,11 @@ tools/             RVM model, Kitten/Piper voices (optional)
 
 - [`SPEC.md`](SPEC.md) - the full SRS: architecture, data flow, every control surface,
   the sampler, the video pipeline, extension points and acceptance checks.
-- [`AEVAL_TUTORIAL.md`](AEVAL_TUTORIAL.md) - ffmpeg as a synthesiser, from a sine wave
+- [`AEVAL_TUTORIAL.md`](docs/AEVAL_TUTORIAL.md) - ffmpeg as a synthesiser, from a sine wave
   to instruments, step sequencing and effects.
 - [`docs/ffmpeg_cheatsheet.png`](docs/ffmpeg_cheatsheet.png) - the one-page technique
-  card at the top of this README, generated by `python docs/make_cheatsheet.py`.
+  card at the top of this README, generated by `python docs/make_cheatsheet.py`
+  (set `FFTECHNO_FONTS` if the Times/Consolas fonts are not in `C:\Windows\Fonts`).
 - [`TODO.md`](TODO.md) - open work only. Design history and rejected directions are
   in [`SPEC.md`](SPEC.md) section 23.
 

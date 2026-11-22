@@ -24,15 +24,25 @@ from .song import Song
 # Source helpers
 # ---------------------------------------------------------------------------
 def source_clip(song: Song) -> Path:
-    """The song's source clip, or the first video in ``ascii/``."""
-    configured = song.video().source_path()
-    if configured and configured.exists():
-        return configured
-    for pattern in ("*.mp4", "*.mov", "*.mkv", "*.webm"):
+    """The song's source: ``video.source``, or the first usable file in ``ascii/``.
+
+    ``photo`` looks look for still images first; every other look looks for video.
+    """
+    video = song.video()
+    if video.source:
+        configured = video.source_path()
+        if configured.exists():
+            return configured
+    patterns = (
+        ("*.png", "*.jpg", "*.jpeg", "*.webp", "*.bmp", "*.tif", "*.tiff")
+        if video.look == "photo"
+        else ("*.mp4", "*.mov", "*.mkv", "*.webm")
+    )
+    for pattern in patterns:
         found = sorted(glob.glob(str(C.IMAGES / pattern)))
         if found:
             return Path(found[0])
-    raise SystemExit(f"no source video found in {C.IMAGES}")
+    raise SystemExit(f"no source for look '{video.look}' found in {C.IMAGES}")
 
 
 def _probe(path: Path) -> tuple[int, int, float]:
@@ -136,9 +146,9 @@ def _encode_rgb(frames: np.ndarray, out: Path, size: tuple[int, int]) -> None:
             "-c:v",
             "libx264",
             "-preset",
-            "slow",
+            C.GIRL_PRESET,
             "-crf",
-            "20",
+            str(C.GIRL_CRF),
             "-pix_fmt",
             "yuv420p",
             "-movflags",
@@ -254,9 +264,9 @@ def build(
             "-c:v",
             "libx264",
             "-preset",
-            "slow",
+            C.GIRL_PRESET,
             "-crf",
-            "20",
+            str(C.GIRL_CRF),
             "-pix_fmt",
             "yuv420p",
             "-movflags",

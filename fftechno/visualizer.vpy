@@ -24,8 +24,8 @@ Pipeline
    current time is drawn.
 4. Convert to YUV420P8 for y4m piping.
 
-Run:  .venv\\Scripts\\vspipe.exe -c y4m visualizer.vpy - | ffmpeg -f yuv4mpegpipe -i - ...
-Info: .venv\\Scripts\\vspipe.exe -i visualizer.vpy -
+Run:  .venv\\Scripts\\vspipe.exe -c y4m fftechno/visualizer.vpy - | ffmpeg -f yuv4mpegpipe -i - ...
+Info: .venv\\Scripts\\vspipe.exe -i fftechno/visualizer.vpy -
 """
 
 import ctypes
@@ -42,6 +42,13 @@ import vapoursynth as vs
 
 core = vs.core
 
+# The repo root lets the script import fftechno for the config default; the caller
+# (video.py) normally also passes FFTECHNO_FPS explicitly.
+ROOT = os.environ.get("FFTECHNO_ROOT", ".")
+if ROOT not in sys.path:
+    sys.path.insert(0, ROOT)
+from fftechno import config as C  # noqa: E402  (needs ROOT on sys.path)
+
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
@@ -51,13 +58,13 @@ GIRL_SPRITES = os.environ.get("FFTECHNO_GIRL_SPRITES", "")
 GIRL_PICK = os.environ.get("FFTECHNO_GIRL_PICK", "")
 # "reset" | "trail" | "build" for the Pollock look (empty = edge, no accumulation).
 POLLOCK = os.environ.get("FFTECHNO_POLLOCK", "").strip()
-IMG_DIR = "ascii"
+IMG_DIR = str(C.IMAGES)
 # When set (vspipe sees FFTECHNO_STATIC=1) the output is a single frozen frame
 # repeated for the whole duration -> no animation.
 STATIC = os.environ.get("FFTECHNO_STATIC") == "1"
 W = int(os.environ.get("FFTECHNO_W", "1920"))   # output size (per song; vertical ok)
 H = int(os.environ.get("FFTECHNO_H", "1080"))
-FPS = 30
+FPS = int(os.environ.get("FFTECHNO_FPS", str(C.VIDEO_FPS)))
 GW, GH = W // 2, H // 2              # low-res clip the picture is drawn into
 
 NBARS = 64
@@ -170,9 +177,6 @@ def draw_text(luma, text, scale=3, margin=70):
 # shader exactly. Paint-tier effects draw per frame in `build_data`; shader-tier
 # effects are spliced into the GLSL below.
 # ---------------------------------------------------------------------------
-ROOT = os.environ.get("FFTECHNO_ROOT", ".")
-if ROOT not in sys.path:
-    sys.path.insert(0, ROOT)
 from fftechno import effects as FX  # noqa: E402  (needs ROOT on sys.path)
 
 FX_SPEC = os.environ.get("FFTECHNO_FX", "")
@@ -185,7 +189,7 @@ if FX_SPEC and os.path.exists(FX_SPEC):
 CHAIN = FX.from_spec(_SPEC) if _SPEC else FX.build_chain(list(FX.DEFAULT_CHAIN))
 PAINT = FX.paint_effects(CHAIN)  # drawn per frame
 NEEDS_STRIP = FX.uses_strip(CHAIN)  # is the audio data strip needed at all?
-SHADER = FX.assemble_shader(CHAIN, _SPEC.get("desc", "girl outline (no overlay)"), H)
+SHADER = FX.assemble_shader(CHAIN, _SPEC.get("desc", "girl outline (no overlay)"), H, FPS)
 
 
 # ---------------------------------------------------------------------------

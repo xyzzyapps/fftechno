@@ -1,5 +1,7 @@
 .venv/
 out2/
+build/
+dist/
 asciii.bak
 tools/
 ascii/
