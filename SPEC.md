@@ -204,7 +204,9 @@ Samplers table, or both; see section 21.
 ## 8. Instruments
 
 The shared techno set is seventeen instruments, all parameterised (values in
-`sounds.md`). The table below also lists `blow`, which `minimal` uses. Template
+`sounds.md`). The table below also lists `blow`, which `minimal` uses. The synthesis
+techniques behind these templates are described in
+[`docs/SOUND_DESIGN.md`](docs/SOUND_DESIGN.md). Template
 *variants* that add per-instrument effects are listed after the table. `triphop` adds `boom.txt`, `break_sp.txt`, `roll.txt`, `sub.txt`,
 `ep.txt`, `strings.txt`, `bell.txt`, `dubstab.txt`, `horn.txt`, `rise.txt` and
 `vinyl.txt`. `triphop_beat` uses `break_synth.txt`, `kick_trip.txt` and
@@ -670,6 +672,7 @@ samples/                     manifest.md (tracked) + downloaded sets (gitignored
 pyproject.toml LICENSE.md README.md SPEC.md TODO.md
 docs/AEVAL_TUTORIAL.md       the aevalsrc/aeval guide
 docs/SONG_EXPLANATION.md     step-by-step build of triphop_samples
+docs/SOUND_DESIGN.md         synthesis techniques used by the templates
 docs/ffmpeg_cheatsheet.png   the one-page technique card (linked from README)
 docs/make_cheatsheet.py      its generator (Pillow + system fonts, render-only)
 output/<name>/               techno*.wav, techno_visualizer*.mp4, girl_loop*.mp4,
@@ -876,7 +879,8 @@ and uses a 2-bar, 16-hit riff:
 editing, samples, video, troubleshooting). `SPEC.md` is this SRS.
 `docs/AEVAL_TUTORIAL.md` is the from-scratch `aevalsrc`/`aeval` guide.
 `docs/SONG_EXPLANATION.md` walks through the `triphop_samples` build with the render
-command first, then a songwriting approach. `TODO.md` is the open-work list only;
+command first, then a songwriting approach. `docs/SOUND_DESIGN.md` describes the
+synthesis techniques used by the templates. `TODO.md` is the open-work list only;
 the design history lives in section 23. `docs/ffmpeg_cheatsheet.png` and its
 generator are tracked because the card is embedded in the README.
 
