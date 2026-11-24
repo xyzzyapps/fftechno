@@ -1,0 +1,39 @@
+# fftechno filtergraph template: a 303 with continuously moving filter bands.
+#
+# `lowpass=f` cannot take a time expression in ffmpeg, so a moving filter is built
+# by crossfading three static resonant low-passes with smooth LFO volume curves.
+# Each band has its own LFO rate, so the timbre drifts like a hand on a cutoff and
+# resonance knob rather than stepping with the pattern.
+#
+# All LFOs are plain ffmpeg `volume=...:eval=frame` expressions using `t`.
+
+aevalsrc='{{amp}}*(1-exp(-{{atk}}*mod(t,{{step}})))*exp(-{{dec}}*mod(t,{{step}}))*{{if_steps(gates; grid; 0)}}*{{if_steps(accents; grid; acc_def)}}*((mod({{if_steps(notes; grid; note_def)}}*(mod(t,{{step}})
+        +({{if_steps(slides; grid; 0)}}/{{slide_rate}})*(1-exp(-{{slide_rate}}*mod(t,{{step}}))))
+        +{{vib_amt}}*sin(2*PI*{{vib_f}}*t),1)*2-1)*(1-{{square}})
+        +(gt(mod({{if_steps(notes; grid; note_def)}}*(mod(t,{{step}})
+        +({{if_steps(slides; grid; 0)}}/{{slide_rate}})*(1-exp(-{{slide_rate}}*mod(t,{{step}}))))
+        +{{vib_amt}}*sin(2*PI*{{vib_f}}*t),1),0.5)*2-1)*{{square}})':s={{sr}}:d={{dur}}[osc];
+        [osc]highpass=f={{hp}},
+        asplit=4[b1][b2][b3][b4];
+        [b1]lowpass=f={{f1}}:width_type=q:width={{q1}}[l1];
+        [b2]lowpass=f={{f2}}:width_type=q:width={{q2}}[l2];
+        [b3]lowpass=f={{f3}}:width_type=q:width={{q3}}[l3];
+        [b4]lowpass=f={{f4}}:width_type=q:width={{q4}}[l4];
+        [l1]volume=volume='{{w1a}}
+        +{{w1b}}*sin(2*PI*t/{{r1}}
+        +{{p1}})':eval=frame[v1];
+        [l2]volume=volume='{{w2a}}
+        +{{w2b}}*sin(2*PI*t/{{r2}}
+        +{{p2}})':eval=frame[v2];
+        [l3]volume=volume='{{w3a}}
+        +{{w3b}}*sin(2*PI*t/{{r3}}
+        +{{p3}})':eval=frame[v3];
+        [l4]volume=volume='{{w4a}}
+        +{{w4b}}*sin(2*PI*t/{{r4}}
+        +{{p4}})':eval=frame[v4];
+        [v1][v2][v3][v4]amix=inputs=4:normalize=0,
+        volume=volume='{{sw_a}}
+        +{{sw_b}}*sin(2*PI*t/{{sw_r}})':eval=frame,
+        asoftclip=type=tanh:threshold={{clip}},
+        lowpass=f={{lp}},
+        aresample={{osr}}[out]

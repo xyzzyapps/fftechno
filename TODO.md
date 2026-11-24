@@ -5,12 +5,14 @@ is still open.
 
 ## Verification
 
-- [ ] **Full nine-song audio audit.** Run
+- [ ] **Full song audio audit.** Run
   `python -m fftechno audio --song S --out out2` for every folder under `songs/`
   and record each exit code, duration and loudness. The last run completed
   `basement` (240.000 s) and `triphop_beat` (21.818 s); `hardgroove` was partial and
   the rest were skipped. `out2/` is gitignored, so recreate it when resuming.
-  `basement` and `hardgroove` need the Kitten TTS model; the other seven songs are
+  `oldschool_acid` (240.000 s) and `warpainting` (480.000 s) have since been built
+  individually to `output/`, but not as part of the clean `out2` audit.
+  `basement` and `hardgroove` need the Kitten TTS model; the other songs are
   instrumental or sample-only.
 - [ ] **Remove or archive the stale worktree.** `.worktrees/aeval` (branch
   `aeval-split`) is separate from the main build and needs explicit approval before

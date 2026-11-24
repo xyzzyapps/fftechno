@@ -1,0 +1,14 @@
+# fftechno - filtergraph template for a bouncy sub bass.
+#
+# A sine sub plus a quiet second harmonic, retriggered on a 16th-note grid with a
+# short attack and a decaying envelope, so each note bounces rather than drones.
+# The `gates`/`notes` lists come from sounds.md.
+
+aevalsrc='{{amp}}*(1-exp(-{{atk}}*mod(t,{{step}})))*exp(-{{dec}}*mod(t,{{step}}))*{{if_steps(gates; grid; 0)}}*(sin(2*PI*{{if_steps(notes; grid; note_def)}}*t)
+        +{{harm}}*sin(2*PI*{{if_steps(notes; grid; note_def)}}*2*t))':s={{sr}}:d={{dur}}[src];
+        [src]lowpass=f={{lp_bass}}:t=q:w={{lp_q}},
+        equalizer=f={{eq_f}}:t=q:w=1:g={{eq_g}},
+        asubboost=cutoff={{sub_cut}}:boost={{sub_boost}}:dry={{sub_dry}}:wet={{sub_wet}},
+        asoftclip=type=tanh:threshold={{clip}},
+        lowpass=f={{lp}},
+        aresample={{osr}}[out]

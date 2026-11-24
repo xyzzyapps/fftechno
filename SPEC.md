@@ -6,8 +6,10 @@ Technical specification of **fftechno**: underground tracks synthesized by
 4:00), `minimal` (100 BPM, 75 bars, 3:00), `triphop` (84 BPM, 84 bars, 4:00, audio
 only), `triphop_beat` (88 BPM, 8 bars, a scratch), `triphop_samples` (84 BPM, 80
 bars, 3:48.6; sample-based: Amen break + sub + electric piano + vinyl; the delivered
-cut is 3:42.9), `psych` (110 BPM, 110 bars, 4:00, 1960s psychedelic rock with a wall
-of sound), `stoner` (76 BPM, 76 bars, 4:00, stoner rock) and `stoner_samples` (80 BPM,
+cut is 3:42.9), `oldschool_acid` (132 BPM, 132 bars, 4:00, oldschool acid techno),
+`psych` (110 BPM, 110 bars, 4:00, 1960s psychedelic rock with a wall
+of sound), `warpainting` (79 BPM, 158 bars, 8:00, psychedelic drone rock),
+`stoner` (76 BPM, 76 bars, 4:00, stoner rock) and `stoner_samples` (80 BPM,
 80 bars, 4:00, sampled stoner rock). A voice, when the song has a `vox` stem, comes
 from a local neural TTS. The build tooling is Python. The arrangement and every
 instrument parameter live in markdown. The repository also ships the one-page
@@ -232,7 +234,7 @@ reuses `pad.txt`. `stoner` adds `guitar_wah.txt` and reuses `guitar_fuzz.txt`,
 | shaker | shaker.txt | `decay, hp, gates` |
 | conga | conga.txt | tuned hand drum: `pitches, gates, slap`, `sweep, rate, decay, hp, lpc, aecho` |
 | reese | reese.txt | square + detune + sub through a resonant 24 dB LP; `beatgrid` notes |
-| acid | acid.txt | 303: `notes, accents, bends, gates`; filter crossfade + resonant peak |
+| acid | acid.txt | 303: `notes, accents, bends`; filter crossfade + resonant peak |
 | lead_pwm | lead_pwm.txt | unison PWM pulse lead, `notes, gates` |
 | lead_fm | lead_fm.txt | 2-op FM lead, `notes, gates`, `aphaser` |
 | pad | pad.txt | detuned chord (`n1/n2/n3`), slow swell |
@@ -254,6 +256,8 @@ variants add effects:
   per-step velocity from a second sequence (`gold_vel`). The dry hat is split into a
   **delay** send (`del_ms`, `del_dec` taps) and a **room** send (`room_ms`,
   `room_dec`), each high-passed and returned at `del_mix`/`room_mix`.
+- `acid_303.txt` - the 303 with a per-step gate and a short attack before the decay;
+  `oldschool_acid` uses it for a 32-step (two-bar) gated phrase.
 
 Because `aecho` cannot null its dry path, a send uses a low `in_gain` (`0.1`) so the
 wet branch carries only the tail; a delay with feedback is a multi-tap `aecho`
@@ -726,6 +730,19 @@ image itself is not tracked. `triphop` (84 BPM, 84 bars = 4:00, instrumental, au
 brk, roll, sub, ep, strings, bell, stab, horn, rise and vinyl. The side-chain key
 is kick and the low bus is sub. The master on disk is `output/triphop/techno_v4.wav`.
 `triphop_beat` is an 88 BPM, 8-bar scratch (kick, break, bass), not the 4-minute song.
+`oldschool_acid` is the oldschool acid techno track: **132 BPM, 132 bars = 4:00**,
+A minor, ten synth stems - a 303-style `acid` line, dry synth 909-style kick/clap/hats,
+ride/crash/tamb, a low `sub`, a sparse stereo `dubstab` and a dark `pad`. The acid line
+uses the `acid_303.txt` variant: a **two-bar, 32-step gated phrase** with rests,
+fractional accents, bends, a short attack envelope and a bright/dark filter crossfade.
+The sidechain key is `kick` and the low bus is `acid|sub`. Master
+`output/oldschool_acid/techno_v3.wav` (240.000 s, -13.0 LUFS / -1.2 dBTP). `warpainting` is the slow psychedelic drone
+counterpart, inspired by The Myrrors' "Warpainting" (original composition):
+**79 BPM, 158 bars = 8:00**, B minor, thirteen synth stems over an 8-bar
+Bm | Gmaj7 | Bm | G loop. Two detuned fuzz guitars drone a B/F# riff with G colour,
+with organ, bass, pad, a tom-heavy kit, tambourine and a wah fuzz lead, in a **6.0 s**
+convolution reverb. Master `output/warpainting/techno_v2.wav` (480.000 s, -13.0 LUFS /
+-1.6 dBTP).
 `triphop_samples` is the **sample-based** counterpart: **84 BPM, 80 bars =
 228.571 s (3:48.57)**, D minor, four elements. The **Amen break**
 (`samples/breaks/amen.wav`) is the only drum source: varispeeded to the 84 BPM grid
@@ -897,7 +914,7 @@ gitignored, and remains shared across output roots. This is
 the recommended way to verify every song without adding `_vN` files to `output/`.
 Current status: `basement` (240.000 s) and `triphop_beat` (21.818 s) completed an
 `out2` run; `hardgroove` was partial and the remaining songs were skipped. The full
-nine-song run is the first open item in `TODO.md`.
+song run is the first open item in `TODO.md`.
 
 **Code audit (this pass).**
 

@@ -199,12 +199,17 @@ sin(2*PI*fc*t + fm_amt*sin(2*PI*fm*t))
 The modulation index and ratio set the brightness and metallic character. A phaser,
 high-pass, tanh clip and low-pass shape it.
 
-### `acid.txt`
+### `acid.txt` and `acid_303.txt`
 
 The 303-style voice is a saw with per-step accents and pitch bends. It is split into
 a bright and a dark path, crossfaded with a cosine LFO, then sent through a resonant
 low-pass, EQ, bitcrush and soft clip. This is the most “alive” template: the accents
 and bends are part of the note list, not a separate effect.
+
+`acid_303.txt` is the oldschool variant used by `oldschool_acid`. It adds a per-step
+gate plus a short attack before the decay, so the 303 phrase has rests and a more
+articulated envelope instead of running continuously. Its `acidgrid` is 32 steps
+(two bars), so the line varies over two bars before repeating.
 
 ### `sax.txt` and `horn.txt`
 
@@ -273,6 +278,29 @@ echo. The tanh is the amp; the low-pass is the speaker.
 Both are single-note saw leads with a sub and an octave. `guitar_lead` uses vibrato;
 `guitar_wah` uses a phaser for the wah effect. Both use a high-pass, tanh, low-pass
 and EQ. The lead deliberately has no echo: the global reverb supplies the space.
+
+## Continuous movement (LFOs)
+
+`lowpass=f` **cannot** be time-varying in ffmpeg - it rejects a `t` expression. A
+moving filter is therefore built by copying the source, filtering each copy at a
+fixed cutoff, and crossfading the copies with sine LFOs on `volume`.
+
+`templates/acid_lfo.txt` does this with four bands (320 / 700 / 1500 / 3200 Hz), each
+faded by its own slow sine:
+
+```text
+volume = w_a + w_b * sin(2*PI*t / r + p)
+```
+
+- `r` - the LFO period in seconds.
+- `p` - a phase offset that staggers the bands.
+- `w_a` / `w_b` - the centre level and depth.
+
+Using four different periods (7.3, 11.9, 17.3, 23.7 s) means the bands never line
+up, so the timbre drifts continuously. A fifth LFO breathes the overall level.
+
+This is the ffmpeg equivalent of slowly turning a cutoff and resonance knob:
+`volume=...:eval=frame` is genuinely continuous, and the result is deterministic.
 
 ## Space and movement
 

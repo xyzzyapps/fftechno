@@ -54,11 +54,15 @@ minutes; the full nine-song set is longer.
 |------|-------|--------|--------|--------|
 | `basement` | jungle techno | 155 BPM, 4:00 | 17 synth instruments + TTS voice | `outline` |
 | `hardgroove` | hardgroove techno | 140 BPM, 4:00 | 12 synth instruments + TTS voice | `edge` |
+| `oldschool_acid` | oldschool acid techno | 132 BPM, 4:00 | 10 synth instruments, instrumental | none |
 | `minimal` | minimal techno | 100 BPM, 3:00 | 7 synth instruments | `photo` + `squares, grain` |
 | `triphop` | trip hop | 84 BPM, 4:00 | 11 synth instruments, instrumental | none |
 | `triphop_beat` | trip-hop scratch | 88 BPM, 21.8 s | 3 synth instruments, instrumental | none |
 | `triphop_samples` | trip hop | 84 BPM, 3:48.6 | 4: Amen break, sub, electric piano, vinyl | cover video (separate) |
 | `psych` | 1960s psychedelic rock | 110 BPM, 4:00 | 13 synth instruments, instrumental | none |
+| `warpainting` | psychedelic drone rock | 79 BPM, 8:00 | 13 synth instruments, instrumental | none |
+| `acidtabs200` | acid techno (TB-303 pattern study) | 130 BPM, 2:57 | drums + 3 squelch 303s + bouncy sub | none |
+| `acid_lfo` | acid techno loop (moving filter) | 130 BPM, 29.5 s | drums + 303 with LFO knob movement | none |
 | `stoner` | stoner rock | 76 BPM, 4:00 | 11 synth instruments, instrumental | none |
 | `stoner_samples` | sampled stoner rock | 80 BPM, 4:00 | 10 sampled drums, guitar and bass | none |
 
@@ -410,6 +414,5 @@ tools/             RVM model, Kitten/Piper voices (optional)
 
 ## License
 
-PolyForm Noncommercial License 1.0.0 - see [`LICENSE.md`](LICENSE.md). Noncommercial
-use only. The YouTube-sourced vinyl sample is used noncommercially with its source URL
-recorded in `samples/manifest.md`.
+PolyForm Noncommercial License 1.0.0 - see [`LICENSE.md`](LICENSE.md).
+Sample license recorded in `samples/manifest.md.
